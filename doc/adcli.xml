@@ -943,7 +943,7 @@ Password for Administrator:
 	of the managed service account as a suffix. On most systems it would be
 	<filename>/etc/krb5.keytab</filename> with a suffix of
 	'domain.example.com', e.g.
-	<filename>/etc/krb5.keytad.domain.example.com</filename>.</para>
+	<filename>/etc/krb5.keytab.domain.example.com</filename>.</para>
 
 	<para><command>adcli create-msa</command> can be called multiple
 	times to reset the password of the managed service account. To identify
@@ -955,7 +955,7 @@ Password for Administrator:
 
 	<para>The managed service account password can be updated with
 <programlisting>
-$ adcli update --domain=domain.example.com --host-keytab=/etc/krb5.keytad.domain.example.com
+$ adcli update --domain=domain.example.com --host-keytab=/etc/krb5.keytab.domain.example.com
 </programlisting>
 	and the managed service account can be deleted with
 <programlisting>
