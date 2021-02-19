@@ -96,6 +96,7 @@ static char *default_ad_ldap_attrs[] =  {
 /* Some constants for the userAccountControl AD LDAP attribute, see e.g.
  * https://support.microsoft.com/en-us/help/305144/how-to-use-the-useraccountcontrol-flags-to-manipulate-user-account-pro
  * for details. */
+#define UAC_ACCOUNTDISABLE             0x0002
 #define UAC_WORKSTATION_TRUST_ACCOUNT  0x1000
 #define UAC_DONT_EXPIRE_PASSWORD      0x10000
 #define UAC_TRUSTED_FOR_DELEGATION    0x80000
@@ -152,6 +153,8 @@ struct _adcli_enroll {
 	char *samba_data_tool;
 	bool trusted_for_delegation;
 	int trusted_for_delegation_explicit;
+	bool account_disable;
+	int account_disable_explicit;
 	char *description;
 };
 
@@ -1566,10 +1569,20 @@ static char *get_user_account_control (adcli_enroll *enroll)
 		uac = UAC_WORKSTATION_TRUST_ACCOUNT | UAC_DONT_EXPIRE_PASSWORD;
 	}
 
-	if (adcli_enroll_get_trusted_for_delegation (enroll)) {
-		uac |= UAC_TRUSTED_FOR_DELEGATION;
-	} else {
-		uac &= ~(UAC_TRUSTED_FOR_DELEGATION);
+	if (enroll->trusted_for_delegation_explicit) {
+		if (adcli_enroll_get_trusted_for_delegation (enroll)) {
+			uac |= UAC_TRUSTED_FOR_DELEGATION;
+		} else {
+			uac &= ~(UAC_TRUSTED_FOR_DELEGATION);
+		}
+	}
+
+	if (enroll->account_disable_explicit) {
+		if (adcli_enroll_get_account_disable (enroll)) {
+			uac |= UAC_ACCOUNTDISABLE;
+		} else {
+			uac &= ~(UAC_ACCOUNTDISABLE);
+		}
 	}
 
 	if (asprintf (&uac_str, "%d", uac) < 0) {
@@ -1613,7 +1626,8 @@ update_computer_account (adcli_enroll *enroll)
 	}
 	free (value);
 
-	if (res == ADCLI_SUCCESS && enroll->trusted_for_delegation_explicit) {
+	if (res == ADCLI_SUCCESS && (enroll->trusted_for_delegation_explicit ||
+	                             enroll->account_disable_explicit)) {
 		char *vals_userAccountControl[] = { NULL , NULL };
 		LDAPMod userAccountControl = { LDAP_MOD_REPLACE, "userAccountControl", { vals_userAccountControl, } };
 		LDAPMod *mods[] = { &userAccountControl, NULL };
@@ -3190,6 +3204,24 @@ adcli_enroll_set_trusted_for_delegation (adcli_enroll *enroll,
 
 	enroll->trusted_for_delegation = value;
 	enroll->trusted_for_delegation_explicit = 1;
+}
+
+bool
+adcli_enroll_get_account_disable (adcli_enroll *enroll)
+{
+	return_val_if_fail (enroll != NULL, false);
+
+	return enroll->account_disable;
+}
+
+void
+adcli_enroll_set_account_disable (adcli_enroll *enroll,
+                                  bool value)
+{
+	return_if_fail (enroll != NULL);
+
+	enroll->account_disable = value;
+	enroll->account_disable_explicit = 1;
 }
 
 void

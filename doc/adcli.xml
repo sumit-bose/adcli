@@ -492,6 +492,12 @@ $ adcli update --login-ccache=/tmp/krbcc_123
 			host.</para></listitem>
 		</varlistentry>
 		<varlistentry>
+			<term><option>--account-disable=<parameter>yes|no|true|false</parameter></option></term>
+			<listitem><para>Set or unset the ACCOUNTDISABLE
+			flag in the userAccountControl attribute to disable or
+			enable the computer account.</para></listitem>
+		</varlistentry>
+		<varlistentry>
 			<term><option>--add-service-principal=<parameter>service/hostname</parameter></option></term>
 			<listitem><para>Add a service principal name. In
 			contrast to the <option>--service-name</option> the
