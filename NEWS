@@ -1,3 +1,13 @@
+0.9.1
+ - tools: add show-computer command [rhbz#1737342]
+ - add description option to join and update [rhbz#1737342]
+ - Use GSS-SPNEGO if available [rhbz#1762420]
+ - add option use-ldaps [rhbz#1762420]
+ - tools: disable SSSD's locator plugin [rhbz#1762633]
+ - doc: explain required AD permissions [gfo#20]
+ - computer: add create-msa sub-command [rhbz#1854112}
+ - Add account-disable option [gfo#21]
+
 0.9.0
  - Improve parsing of NetLogon replies [bfo#98143], [bfo#100466]
  - Add support of read-only domain controllers (RODC)
