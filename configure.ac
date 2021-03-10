@@ -124,6 +124,21 @@ if test "$sasl_invalid" = "yes"; then
 fi
 
 # --------------------------------------------------------------------
+# Vendor error message
+
+AC_ARG_WITH([vendor-error-message],
+              [AS_HELP_STRING([--with-vendor-error-message=ARG],
+                            [Add a vendor specific error message shown if a adcli command fails]
+                           )],
+              [AS_IF([test "x$withval" != "x"],
+                     [AC_DEFINE_UNQUOTED([VENDOR_MSG],
+                                         ["$withval"],
+                                         [Vendor specific error message])],
+                     [AC_MSG_ERROR([--with-vendor-error-message requires an argument])]
+                    )],
+              [])
+
+# --------------------------------------------------------------------
 # Documentation options
 
 AC_MSG_CHECKING([whether to build documentation])

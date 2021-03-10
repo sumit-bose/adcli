@@ -538,6 +538,12 @@ main (int argc,
 
 		if (conn)
 			adcli_conn_unref (conn);
+#ifdef VENDOR_MSG
+		if (ret != 0) {
+			fprintf (stderr, VENDOR_MSG"\n");
+		}
+#endif
+
 		return ret;
 	}
 
