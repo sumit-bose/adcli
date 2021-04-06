@@ -1,6 +1,6 @@
 include $(top_srcdir)/Makefile.decl
 
-INCLUDES = \
+AM_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-DADCLI_UNSTABLE_API \
 	-DHOST_TRIPLET=\"$(host_triplet)\" \

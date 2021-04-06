@@ -1,4 +1,4 @@
-AC_PREREQ(2.61)
+AC_PREREQ([2.61])
 
 AC_INIT([adcli],
 	[0.9.1],
@@ -33,7 +33,7 @@ LT_INIT([dlopen disable-static])
 AC_PROG_CC
 AC_PROG_CPP
 AM_PROG_CC_C_O
-AM_PROG_LIBTOOL
+LT_INIT
 
 # -------------------------------------------------------------------
 # Kerberos
@@ -143,7 +143,7 @@ AC_ARG_WITH([vendor-error-message],
 
 AC_MSG_CHECKING([whether to build documentation])
 AC_ARG_ENABLE(doc,
-              AC_HELP_STRING([--enable-doc],
+              AS_HELP_STRING([--enable-doc],
                              [Disable building documentation])
              )
 
@@ -180,7 +180,7 @@ doc_status=$enable_doc
 
 AC_MSG_CHECKING([for debug mode])
 AC_ARG_ENABLE(debug,
-              AC_HELP_STRING([--enable-debug=no/default/yes],
+              AS_HELP_STRING([--enable-debug=no/default/yes],
               [Turn on or off debugging]))
 
 if test "$enable_debug" != "no"; then
@@ -308,7 +308,7 @@ fi
 
 AC_MSG_CHECKING([where is Samba's net utility])
 AC_ARG_WITH([samba_data_tool],
-              AC_HELP_STRING([--with-samba-data-tool=/path],
+              AS_HELP_STRING([--with-samba-data-tool=/path],
               [Path to Samba's net utility]),
               [],
               [with_samba_data_tool=/usr/bin/net])
