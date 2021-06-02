@@ -153,6 +153,8 @@ struct _adcli_enroll {
 	char *samba_data_tool;
 	bool trusted_for_delegation;
 	int trusted_for_delegation_explicit;
+	bool dont_expire_password;
+	int dont_expire_password_explicit;
 	bool account_disable;
 	int account_disable_explicit;
 	char *description;
@@ -832,6 +834,8 @@ create_computer_account (adcli_enroll *enroll,
 	int ret;
 	size_t c;
 	size_t m;
+	uint32_t uac = UAC_WORKSTATION_TRUST_ACCOUNT | UAC_DONT_EXPIRE_PASSWORD ;
+	char *uac_str = NULL;
 
 	LDAPMod *all_mods[] = {
 		&objectClass,
@@ -852,11 +856,21 @@ create_computer_account (adcli_enroll *enroll,
 	LDAPMod *mods[mods_count];
 
 	if (adcli_enroll_get_trusted_for_delegation (enroll)) {
-		vals_userAccountControl[0] = "593920"; /* WORKSTATION_TRUST_ACCOUNT | DONT_EXPIRE_PASSWD | TRUSTED_FOR_DELEGATION */
+		uac |= UAC_TRUSTED_FOR_DELEGATION;
 	}
+
+	if (!adcli_enroll_get_dont_expire_password (enroll)) {
+		uac &= ~(UAC_DONT_EXPIRE_PASSWORD);
+	}
+
+	if (asprintf (&uac_str, "%d", uac) < 0) {
+		return_val_if_reached (ADCLI_ERR_UNEXPECTED);
+	}
+	vals_userAccountControl[0] = uac_str;
 
 	ret = calculate_enctypes (enroll, &val);
 	if (ret != ADCLI_SUCCESS) {
+		free (uac_str);
 		return ret;
 	}
 	vals_supportedEncryptionTypes[0] = val;
@@ -871,6 +885,7 @@ create_computer_account (adcli_enroll *enroll,
 	mods[m] = NULL;
 
 	ret = ldap_add_ext_s (ldap, enroll->computer_dn, mods, NULL, NULL);
+	free (uac_str);
 	free (val);
 
 	/*
@@ -1577,6 +1592,14 @@ static char *get_user_account_control (adcli_enroll *enroll)
 		}
 	}
 
+	if (enroll->dont_expire_password_explicit) {
+		if (adcli_enroll_get_dont_expire_password (enroll)) {
+			uac |= UAC_DONT_EXPIRE_PASSWORD;
+		} else {
+			uac &= ~(UAC_DONT_EXPIRE_PASSWORD);
+		}
+	}
+
 	if (enroll->account_disable_explicit) {
 		if (adcli_enroll_get_account_disable (enroll)) {
 			uac |= UAC_ACCOUNTDISABLE;
@@ -1627,6 +1650,7 @@ update_computer_account (adcli_enroll *enroll)
 	free (value);
 
 	if (res == ADCLI_SUCCESS && (enroll->trusted_for_delegation_explicit ||
+	                             enroll->dont_expire_password_explicit ||
 	                             enroll->account_disable_explicit)) {
 		char *vals_userAccountControl[] = { NULL , NULL };
 		LDAPMod userAccountControl = { LDAP_MOD_REPLACE, "userAccountControl", { vals_userAccountControl, } };
@@ -3206,6 +3230,24 @@ adcli_enroll_set_trusted_for_delegation (adcli_enroll *enroll,
 
 	enroll->trusted_for_delegation = value;
 	enroll->trusted_for_delegation_explicit = 1;
+}
+
+bool
+adcli_enroll_get_dont_expire_password (adcli_enroll *enroll)
+{
+	return_val_if_fail (enroll != NULL, false);
+
+	return enroll->dont_expire_password;
+}
+
+void
+adcli_enroll_set_dont_expire_password (adcli_enroll *enroll,
+                                       bool value)
+{
+	return_if_fail (enroll != NULL);
+
+	enroll->dont_expire_password = value;
+	enroll->dont_expire_password_explicit = 1;
 }
 
 bool

@@ -110,6 +110,7 @@ typedef enum {
 	opt_add_samba_data,
 	opt_samba_data_tool,
 	opt_trusted_for_delegation,
+	opt_dont_expire_password,
 	opt_add_service_principal,
 	opt_remove_service_principal,
 	opt_description,
@@ -144,6 +145,8 @@ static adcli_tool_desc common_usages[] = {
 	{ opt_computer_password_lifetime, "lifetime of the host accounts password in days", },
 	{ opt_trusted_for_delegation, "set/unset the TRUSTED_FOR_DELEGATION flag\n"
 	                              "in the userAccountControl attribute", },
+	{ opt_dont_expire_password, "set/unset the DONT_EXPIRE_PASSWORD flag\n"
+	                            "in the userAccountControl attribute", },
 	{ opt_account_disable, "set/unset the ACCOUNTDISABLE flag\n"
 	                       "in the userAccountControl attribute", },
 	{ opt_add_service_principal, "add the given service principal to the account\n" },
@@ -307,6 +310,13 @@ parse_option (Option opt,
 			adcli_enroll_set_trusted_for_delegation (enroll, false);
 		}
 		return ADCLI_SUCCESS;
+	case opt_dont_expire_password:
+		if (strcasecmp (optarg, "true") == 0 || strcasecmp (optarg, "yes") == 0) {
+			adcli_enroll_set_dont_expire_password (enroll, true);
+		} else {
+			adcli_enroll_set_dont_expire_password (enroll, false);
+		}
+		return ADCLI_SUCCESS;
 	case opt_account_disable:
 		if (strcasecmp (optarg, "true") == 0 || strcasecmp (optarg, "yes") == 0) {
 			adcli_enroll_set_account_disable (enroll, true);
@@ -393,6 +403,7 @@ adcli_tool_computer_join (adcli_conn *conn,
 		{ "description", optional_argument, NULL, opt_description },
 		{ "user-principal", optional_argument, NULL, opt_user_principal },
 		{ "trusted-for-delegation", required_argument, NULL, opt_trusted_for_delegation },
+		{ "dont-expire-password", required_argument, NULL, opt_dont_expire_password },
 		{ "add-service-principal", required_argument, NULL, opt_add_service_principal },
 		{ "show-details", no_argument, NULL, opt_show_details },
 		{ "show-password", no_argument, NULL, opt_show_password },
@@ -516,6 +527,7 @@ adcli_tool_computer_update (adcli_conn *conn,
 		{ "user-principal", optional_argument, NULL, opt_user_principal },
 		{ "computer-password-lifetime", optional_argument, NULL, opt_computer_password_lifetime },
 		{ "trusted-for-delegation", required_argument, NULL, opt_trusted_for_delegation },
+		{ "dont-expire-password", required_argument, NULL, opt_dont_expire_password },
 		{ "account-disable", required_argument, NULL, opt_account_disable },
 		{ "add-service-principal", required_argument, NULL, opt_add_service_principal },
 		{ "remove-service-principal", required_argument, NULL, opt_remove_service_principal },

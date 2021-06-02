@@ -126,6 +126,10 @@ bool               adcli_enroll_get_trusted_for_delegation (adcli_enroll *enroll
 void               adcli_enroll_set_trusted_for_delegation (adcli_enroll *enroll,
                                                             bool value);
 
+bool               adcli_enroll_get_dont_expire_password (adcli_enroll *enroll);
+void               adcli_enroll_set_dont_expire_password (adcli_enroll *enroll,
+                                                          bool value);
+
 bool               adcli_enroll_get_account_disable     (adcli_enroll *enroll);
 void               adcli_enroll_set_account_disable     (adcli_enroll *enroll,
                                                          bool value);
