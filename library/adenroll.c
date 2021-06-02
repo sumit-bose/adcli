@@ -3060,6 +3060,8 @@ adcli_enroll_set_keytab_enctypes (adcli_enroll *enroll,
 	krb5_enctype *newval = NULL;
 	int len;
 
+	return_if_fail (enroll != NULL);
+
 	if (value) {
 		for (len = 0; value[len] != 0; len++);
 		newval = malloc (sizeof (krb5_enctype) * (len + 1));

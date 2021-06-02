@@ -231,6 +231,13 @@ _adcli_ldap_have_in_mod (LDAPMod *mod,
 
 	vals = malloc (sizeof (struct berval) * (count + 1));
 	pvals = malloc (sizeof (struct berval *) * (count + 1));
+	if (vals == NULL || pvals == NULL) {
+		_adcli_err ("Memory allocation failed, assuming attribute must be updated.");
+		free (vals);
+		free (pvals);
+		return 0;
+	}
+
 	for (i = 0; i < count; i++) {
 		vals[i].bv_val = mod->mod_vals.modv_strvals[i];
 		vals[i].bv_len = strlen (vals[i].bv_val);
