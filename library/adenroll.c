@@ -859,7 +859,8 @@ create_computer_account (adcli_enroll *enroll,
 		uac |= UAC_TRUSTED_FOR_DELEGATION;
 	}
 
-	if (!adcli_enroll_get_dont_expire_password (enroll)) {
+	if (enroll->dont_expire_password_explicit
+		       && !adcli_enroll_get_dont_expire_password (enroll)) {
 		uac &= ~(UAC_DONT_EXPIRE_PASSWORD);
 	}
 
