@@ -42,6 +42,7 @@ struct _adcli_entry {
 	char *entry_dn;
 	char *domain_ou;
 	char *entry_container;
+	LDAPMessage *entry_attrs;
 };
 
 static adcli_entry *
@@ -63,6 +64,7 @@ entry_new (adcli_conn *conn,
 
 	entry->builder = builder;
 	entry->object_class = object_class;
+	entry->entry_attrs = NULL;
 	return entry;
 }
 
@@ -82,6 +84,7 @@ entry_free (adcli_entry *entry)
 	free (entry->entry_container);
 	free (entry->entry_dn);
 	free (entry->domain_ou);
+	ldap_msgfree (entry->entry_attrs);
 	adcli_conn_unref (entry->conn);
 	free (entry);
 }
@@ -102,7 +105,7 @@ static adcli_result
 update_entry_from_domain (adcli_entry *entry,
                           LDAP *ldap)
 {
-	const char *attrs[] = { "1.1", NULL };
+	const char *attrs[] = { "userAccountControl", NULL };
 	LDAPMessage *results;
 	LDAPMessage *first;
 	const char *base;
@@ -139,7 +142,8 @@ update_entry_from_domain (adcli_entry *entry,
 		return_unexpected_if_fail (entry->entry_dn != NULL);
 	}
 
-	ldap_msgfree (results);
+	ldap_msgfree (entry->entry_attrs);
+	entry->entry_attrs = results;
 	return ADCLI_SUCCESS;
 }
 
