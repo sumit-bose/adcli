@@ -93,14 +93,6 @@ static char *default_ad_ldap_attrs[] =  {
 	NULL,
 };
 
-/* Some constants for the userAccountControl AD LDAP attribute, see e.g.
- * https://support.microsoft.com/en-us/help/305144/how-to-use-the-useraccountcontrol-flags-to-manipulate-user-account-pro
- * for details. */
-#define UAC_ACCOUNTDISABLE             0x0002
-#define UAC_WORKSTATION_TRUST_ACCOUNT  0x1000
-#define UAC_DONT_EXPIRE_PASSWORD      0x10000
-#define UAC_TRUSTED_FOR_DELEGATION    0x80000
-
 struct _adcli_enroll {
 	int refs;
 	adcli_conn *conn;
