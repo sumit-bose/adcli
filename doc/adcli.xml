@@ -57,6 +57,11 @@
 		<arg choice="plain">user</arg>
 	</cmdsynopsis>
 	<cmdsynopsis>
+		<command>adcli passwd-user</command>
+		<arg choice="opt">--domain=domain.example.com</arg>
+		<arg choice="plain">user</arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
 		<command>adcli create-group</command>
 		<arg choice="opt">--domain=domain.example.com</arg>
 		<arg choice="plain">user</arg>
@@ -690,6 +695,21 @@ $ adcli create-user Fry --domain=domain.example.com \
 
 <programlisting>
 $ adcli delete-user Fry --domain=domain.example.com
+</programlisting>
+
+	<para>The various global options can be used.</para>
+
+</refsect1>
+
+<refsect1 id='passwd_user'>
+	<title>(Re)setting the password of a User with an Administrative Account</title>
+
+	<para><command>adcli passwd-user</command> sets or resets the password
+	of user account. The administrative account used for this operation
+	must have privileges to set a password.</para>
+
+<programlisting>
+$ adcli passwd-user Fry --domain=domain.example.com
 </programlisting>
 
 	<para>The various global options can be used.</para>

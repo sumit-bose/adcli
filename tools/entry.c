@@ -24,6 +24,7 @@
 #include "config.h"
 
 #include "adcli.h"
+#include "adprivate.h"
 #include "adattrs.h"
 #include "tools.h"
 
@@ -373,6 +374,104 @@ adcli_tool_user_delete (adcli_conn *conn,
 	res = adcli_entry_delete (entry);
 	if (res != ADCLI_SUCCESS) {
 		warnx ("deleting user %s in domain %s failed: %s",
+		       adcli_entry_get_sam_name (entry),
+		       adcli_conn_get_domain_name (conn),
+		       adcli_get_last_error ());
+		adcli_entry_unref (entry);
+		return -res;
+	}
+
+	adcli_entry_unref (entry);
+
+	return 0;
+}
+
+int
+adcli_tool_user_passwd (adcli_conn *conn,
+                        int argc,
+                        char *argv[])
+{
+	adcli_result res;
+	adcli_entry *entry;
+	int opt;
+	char *user_pwd = NULL;
+
+	struct option options[] = {
+		{ "domain", required_argument, NULL, opt_domain },
+		{ "domain-realm", required_argument, NULL, opt_domain_realm },
+		{ "domain-controller", required_argument, NULL, opt_domain_controller },
+		{ "use-ldaps", no_argument, 0, opt_use_ldaps },
+		{ "login-user", required_argument, NULL, opt_login_user },
+		{ "login-ccache", optional_argument, NULL, opt_login_ccache },
+		{ "no-password", no_argument, 0, opt_no_password },
+		{ "stdin-password", no_argument, 0, opt_stdin_password },
+		{ "prompt-password", no_argument, 0, opt_prompt_password },
+		{ "verbose", no_argument, NULL, opt_verbose },
+		{ "help", no_argument, NULL, 'h' },
+		{ 0 },
+	};
+
+	static adcli_tool_desc usages[] = {
+		{ 0, "usage: adcli passwd-user --domain=xxxx user" },
+		{ 0 },
+	};
+
+	while ((opt = adcli_tool_getopt (argc, argv, options)) != -1) {
+		switch (opt) {
+		case 'h':
+		case '?':
+		case ':':
+			adcli_tool_usage (options, usages);
+			adcli_tool_usage (options, common_usages);
+			return opt == 'h' ? 0 : 2;
+		default:
+			res = parse_option ((Option)opt, optarg, conn);
+			if (res != ADCLI_SUCCESS) {
+				return res;
+			}
+			break;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1) {
+		warnx ("specify one user name to (re)set password");
+		return 2;
+	}
+
+	entry = adcli_entry_new_user (conn, argv[0]);
+	if (entry == NULL) {
+		warnx ("unexpected memory problems");
+		return -1;
+	}
+
+	adcli_conn_set_allowed_login_types (conn, ADCLI_LOGIN_USER_ACCOUNT);
+
+	res = adcli_conn_connect (conn);
+	if (res != ADCLI_SUCCESS) {
+		warnx ("couldn't connect to %s domain: %s",
+		       adcli_conn_get_domain_name (conn),
+		       adcli_get_last_error ());
+		adcli_entry_unref (entry);
+		return -res;
+	}
+
+	user_pwd = adcli_prompt_password_func (ADCLI_LOGIN_USER_ACCOUNT,
+	                                       adcli_entry_get_sam_name(entry),
+	                                       0, NULL);
+	if (user_pwd == NULL || *user_pwd == '\0') {
+		warnx ("missing password");
+		_adcli_password_free (user_pwd);
+		adcli_entry_unref (entry);
+		return 2;
+	}
+
+	res = adcli_entry_set_passwd (entry, user_pwd);
+	_adcli_password_free (user_pwd);
+	if (res != ADCLI_SUCCESS) {
+		warnx ("(re)setting password for user %s in domain %s failed: %s",
 		       adcli_entry_get_sam_name (entry),
 		       adcli_conn_get_domain_name (conn),
 		       adcli_get_last_error ());

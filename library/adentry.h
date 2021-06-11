@@ -49,6 +49,9 @@ adcli_result       adcli_entry_modify                   (adcli_entry *entry,
 
 adcli_result       adcli_entry_delete                   (adcli_entry *entry);
 
+adcli_result       adcli_entry_set_passwd               (adcli_entry *entry,
+                                                         const char *user_pwd);
+
 const char *       adcli_entry_get_domain_ou            (adcli_entry *entry);
 
 void               adcli_entry_set_domain_ou            (adcli_entry *entry,

@@ -94,6 +94,10 @@ int       adcli_tool_user_delete       (adcli_conn *conn,
                                         int argc,
                                         char *argv[]);
 
+int       adcli_tool_user_passwd       (adcli_conn *conn,
+                                        int argc,
+                                        char *argv[]);
+
 int       adcli_tool_group_create      (adcli_conn *conn,
                                         int argc,
                                         char *argv[]);

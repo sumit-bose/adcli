@@ -409,6 +409,144 @@ adcli_entry_delete (adcli_entry *entry)
 	return ADCLI_SUCCESS;
 }
 
+static adcli_result
+adcli_entry_ensure_enabled (adcli_entry *entry)
+{
+	adcli_result res;
+	LDAP *ldap;
+	adcli_attrs *attrs;
+	uint32_t uac = 0;
+	char *uac_str;
+	unsigned long attr_val;
+	char *end;
+
+	return_unexpected_if_fail (entry->entry_attrs != NULL);
+
+	ldap = adcli_conn_get_ldap_connection (entry->conn);
+	return_unexpected_if_fail (ldap != NULL);
+
+	uac_str = _adcli_ldap_parse_value (ldap, entry->entry_attrs,
+	                                   "userAccountControl");
+	if (uac_str != NULL) {
+		attr_val = strtoul (uac_str, &end, 10);
+		if (*end != '\0' || attr_val > UINT32_MAX) {
+			_adcli_warn ("Invalid userAccountControl '%s' for %s account in directory: %s, assuming 0",
+			            uac_str, entry->object_class, entry->entry_dn);
+		} else {
+			uac = attr_val;
+		}
+		free (uac_str);
+	}
+	if (uac & UAC_ACCOUNTDISABLE) {
+		uac &= ~(UAC_ACCOUNTDISABLE);
+
+		if (asprintf (&uac_str, "%d", uac) < 0) {
+			_adcli_warn ("Cannot enable %s entry %s after password (re)set",
+			             entry->object_class, entry->entry_dn);
+			return ADCLI_ERR_UNEXPECTED;
+		}
+
+		attrs = adcli_attrs_new ();
+		adcli_attrs_replace (attrs, "userAccountControl", uac_str,
+		                     NULL);
+		res = adcli_entry_modify (entry, attrs);
+		if (res == ADCLI_SUCCESS) {
+			_adcli_info ("Enabled %s entry %s after password (re)set",
+			             entry->object_class, entry->entry_dn);
+		} else {
+			_adcli_warn ("Failed to enable %s entry %s after password (re)set",
+			             entry->object_class, entry->entry_dn);
+		}
+		free (uac_str);
+		adcli_attrs_free (attrs);
+	} else {
+		res = ADCLI_SUCCESS;
+	}
+
+	return res;
+}
+
+adcli_result
+adcli_entry_set_passwd (adcli_entry *entry, const char *user_pwd)
+{
+	adcli_result res;
+	LDAP *ldap;
+	krb5_error_code code;
+	krb5_context k5;
+	krb5_ccache ccache;
+	krb5_data result_string = { 0, };
+	krb5_data result_code_string = { 0, };
+	int result_code;
+	char *message;
+	krb5_principal user_principal;
+
+	ldap = adcli_conn_get_ldap_connection (entry->conn);
+	return_unexpected_if_fail (ldap != NULL);
+
+	/* Find the user */
+	res = update_entry_from_domain (entry, ldap);
+	if (res != ADCLI_SUCCESS)
+		return res;
+
+	if (!entry->entry_dn) {
+		_adcli_err ("Cannot find the %s entry %s in the domain",
+		            entry->object_class, entry->sam_name);
+		return ADCLI_ERR_CONFIG;
+	}
+
+	k5 = adcli_conn_get_krb5_context (entry->conn);
+	return_unexpected_if_fail (k5 != NULL);
+
+	code = _adcli_krb5_build_principal (k5, entry->sam_name,
+	                                    adcli_conn_get_domain_realm (entry->conn),
+	                                    &user_principal);
+	return_unexpected_if_fail (code == 0);
+
+	ccache = adcli_conn_get_login_ccache (entry->conn);
+	return_unexpected_if_fail (ccache != NULL);
+
+	memset (&result_string, 0, sizeof (result_string));
+	memset (&result_code_string, 0, sizeof (result_code_string));
+
+	code = krb5_set_password_using_ccache (k5, ccache, user_pwd,
+	                                       user_principal, &result_code,
+	                                       &result_code_string, &result_string);
+
+	if (code != 0) {
+		_adcli_err ("Couldn't set password for %s account: %s: %s",
+		            entry->object_class,
+		            entry->sam_name, krb5_get_error_message (k5, code));
+		/* TODO: Parse out these values */
+		res = ADCLI_ERR_DIRECTORY;
+
+	} else if (result_code != 0) {
+#ifdef HAVE_KRB5_CHPW_MESSAGE
+		if (krb5_chpw_message (k5, &result_string, &message) != 0)
+			message = NULL;
+#else
+		message = NULL;
+		if (result_string.length)
+			message = _adcli_str_dupn (result_string.data, result_string.length);
+#endif
+		_adcli_err ("Cannot set %s password: %.*s%s%s",
+		            entry->object_class,
+		            (int)result_code_string.length, result_code_string.data,
+		            message ? ": " : "", message ? message : "");
+		res = ADCLI_ERR_CREDENTIALS;
+#ifdef HAVE_KRB5_CHPW_MESSAGE
+		krb5_free_string (k5, message);
+#else
+		free (message);
+#endif
+	} else {
+		_adcli_info ("Password (re)setted for %s: %s", entry->object_class, entry->entry_dn);
+
+		res = adcli_entry_ensure_enabled (entry);
+	}
+
+	return res;
+}
+
 const char *
 adcli_entry_get_sam_name (adcli_entry *entry)
 {
