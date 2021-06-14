@@ -115,6 +115,7 @@ typedef enum {
 	opt_remove_service_principal,
 	opt_description,
 	opt_setattr,
+	opt_delattr,
 	opt_use_ldaps,
 	opt_account_disable,
 } Option;
@@ -154,6 +155,7 @@ static adcli_tool_desc common_usages[] = {
 	{ opt_remove_service_principal, "remove the given service principal from the account\n" },
 	{ opt_description, "add a description to the account\n" },
 	{ opt_setattr, "add an attribute with a value\n" },
+	{ opt_delattr, "remove an attribute\n" },
 	{ opt_no_password, "don't prompt for or read a password" },
 	{ opt_prompt_password, "prompt for a password if necessary" },
 	{ opt_stdin_password, "read a password from stdin (until EOF) if\n"
@@ -339,6 +341,12 @@ parse_option (Option opt,
 		ret =  adcli_enroll_add_setattr (enroll, optarg);
 		if (ret != ADCLI_SUCCESS) {
 			warnx ("parsing setattr option failed");
+		}
+		return ret;
+	case opt_delattr:
+		ret = adcli_enroll_add_delattr (enroll, optarg);
+		if (ret != ADCLI_SUCCESS) {
+			warnx ("parsing delattr option failed");
 		}
 		return ret;
 	case opt_use_ldaps:
@@ -534,6 +542,7 @@ adcli_tool_computer_update (adcli_conn *conn,
 		{ "os-service-pack", optional_argument, NULL, opt_os_service_pack },
 		{ "description", optional_argument, NULL, opt_description },
 		{ "setattr", required_argument, NULL, opt_setattr },
+		{ "delattr", required_argument, NULL, opt_delattr },
 		{ "user-principal", optional_argument, NULL, opt_user_principal },
 		{ "computer-password-lifetime", optional_argument, NULL, opt_computer_password_lifetime },
 		{ "trusted-for-delegation", required_argument, NULL, opt_trusted_for_delegation },

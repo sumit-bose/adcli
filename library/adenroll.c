@@ -151,6 +151,7 @@ struct _adcli_enroll {
 	int account_disable_explicit;
 	char *description;
 	char **setattr;
+	char **delattr;
 };
 
 static const char *
@@ -845,6 +846,39 @@ get_mods_for_attrs (adcli_enroll *enroll, int mod_op)
 	return mods;
 }
 
+static LDAPMod **
+get_del_mods_for_attrs (adcli_enroll *enroll, int mod_op)
+{
+	size_t len;
+	size_t c;
+	LDAPMod **mods = NULL;
+
+	len = _adcli_strv_len (enroll->delattr);
+	if (len == 0) {
+		return NULL;
+	}
+
+	mods = calloc (len + 1, sizeof (LDAPMod *));
+	return_val_if_fail (mods != NULL, NULL);
+
+	for (c = 0; c < len; c++) {
+		mods[c] = calloc (1, sizeof (LDAPMod));
+		if (mods[c] == NULL) {
+			ldap_mods_free (mods, 1);
+			return NULL;
+		}
+
+		mods[c]->mod_op = mod_op;
+		mods[c]->mod_type = strdup (enroll->delattr[c]);
+		mods[c]->mod_values = NULL;
+		if (mods[c]->mod_type == NULL) {
+			ldap_mods_free (mods, 1);
+			return NULL;
+		}
+	}
+
+	return mods;
+}
 
 static adcli_result
 create_computer_account (adcli_enroll *enroll,
@@ -1769,6 +1803,14 @@ update_computer_account (adcli_enroll *enroll)
 
 	if (res == ADCLI_SUCCESS && enroll->setattr != NULL) {
 		LDAPMod **mods = get_mods_for_attrs (enroll, LDAP_MOD_REPLACE);
+		if (mods != NULL) {
+			res |= update_computer_attribute (enroll, ldap, mods);
+			ldap_mods_free (mods, 1);
+		}
+	}
+
+	if (res == ADCLI_SUCCESS && enroll->delattr != NULL) {
+		LDAPMod **mods = get_del_mods_for_attrs (enroll, LDAP_MOD_DELETE);
 		if (mods != NULL) {
 			res |= update_computer_attribute (enroll, ldap, mods);
 			ldap_mods_free (mods, 1);
@@ -3475,6 +3517,30 @@ adcli_enroll_get_setattr (adcli_enroll *enroll)
 	return (const char **) enroll->setattr;
 }
 
+adcli_result
+adcli_enroll_add_delattr (adcli_enroll *enroll, const char *value)
+{
+	return_val_if_fail (enroll != NULL, ADCLI_ERR_CONFIG);
+	return_val_if_fail (value != NULL, ADCLI_ERR_CONFIG);
+
+	if (_adcli_strv_has_ex (default_ad_ldap_attrs, value, strcasecmp) == 1) {
+		_adcli_err ("Attribute [%s] cannot be removed with delattr", value);
+		return ADCLI_ERR_CONFIG;
+	}
+
+	enroll->delattr = _adcli_strv_add (enroll->delattr, strdup (value),
+	                                   NULL);
+	return_val_if_fail (enroll->delattr != NULL, ADCLI_ERR_CONFIG);
+
+	return ADCLI_SUCCESS;
+}
+
+const char **
+adcli_enroll_get_delattr (adcli_enroll *enroll)
+{
+	return_val_if_fail (enroll != NULL, NULL);
+	return (const char **) enroll->delattr;
+}
 
 #ifdef ADENROLL_TESTS
 
