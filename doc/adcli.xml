@@ -375,6 +375,23 @@ Password for Administrator:
 			name as well.</para></listitem>
 		</varlistentry>
 		<varlistentry>
+			<term><option>--setattr=<parameter>name=value</parameter></option></term>
+			<listitem><para>Add the LDAP attribute
+			<option><parameter>name</parameter></option> with the
+			given <option><parameter>value</parameter></option> to
+			the new LDAP host object.
+			This option can be used multiple times to add multiple
+			different attributes. Multi-value attributes are
+			currently not supported.</para>
+			<para>Please note that the account used to join the
+			domain must have the required privileges to add the
+			given attributes. Some attributes might have
+			constraints with respect to syntax and allowed values
+			which must be met as well. Attributes managed by other
+			adcli options cannot be set with this option.</para>
+			</listitem>
+		</varlistentry>
+		<varlistentry>
 			<term><option>--show-details</option></term>
 			<listitem><para>After a successful join print out information
 			about join operation. This is output in a format that should
@@ -542,6 +559,23 @@ $ adcli update --login-ccache=/tmp/krbcc_123
 			<term><option>--remove-service-principal=<parameter>service/hostname</parameter></option></term>
 			<listitem><para>Remove a service principal name from
 			the keytab and the AD host object.</para></listitem>
+		</varlistentry>
+		<varlistentry>
+			<term><option>--setattr=<parameter>name=value</parameter></option></term>
+			<listitem><para>Add the LDAP attribute
+			<option><parameter>name</parameter></option> with the
+			given <option><parameter>value</parameter></option> to
+			the LDAP host object.
+			This option can be used multiple times to add multiple
+			different attributes. Multi-value attributes are
+			currently not supported.</para>
+			<para>Please note that the account used to update the
+			host object must have the required privileges to modify
+			the given attributes. Some attributes might have
+			constraints with respect to syntax and allowed values
+			which must be met as well. Attributes managed by other
+			adcli options cannot be set with this option.</para>
+			</listitem>
 		</varlistentry>
 		<varlistentry>
 			<term><option>--show-details</option></term>

@@ -114,6 +114,7 @@ typedef enum {
 	opt_add_service_principal,
 	opt_remove_service_principal,
 	opt_description,
+	opt_setattr,
 	opt_use_ldaps,
 	opt_account_disable,
 } Option;
@@ -152,6 +153,7 @@ static adcli_tool_desc common_usages[] = {
 	{ opt_add_service_principal, "add the given service principal to the account\n" },
 	{ opt_remove_service_principal, "remove the given service principal from the account\n" },
 	{ opt_description, "add a description to the account\n" },
+	{ opt_setattr, "add an attribute with a value\n" },
 	{ opt_no_password, "don't prompt for or read a password" },
 	{ opt_prompt_password, "prompt for a password if necessary" },
 	{ opt_stdin_password, "read a password from stdin (until EOF) if\n"
@@ -333,6 +335,12 @@ parse_option (Option opt,
 	case opt_description:
 		adcli_enroll_set_description (enroll, optarg);
 		return ADCLI_SUCCESS;
+	case opt_setattr:
+		ret =  adcli_enroll_add_setattr (enroll, optarg);
+		if (ret != ADCLI_SUCCESS) {
+			warnx ("parsing setattr option failed");
+		}
+		return ret;
 	case opt_use_ldaps:
 		adcli_conn_set_use_ldaps (conn, true);
 		return ADCLI_SUCCESS;
@@ -401,6 +409,7 @@ adcli_tool_computer_join (adcli_conn *conn,
 		{ "os-version", required_argument, NULL, opt_os_version },
 		{ "os-service-pack", optional_argument, NULL, opt_os_service_pack },
 		{ "description", optional_argument, NULL, opt_description },
+		{ "setattr", required_argument, NULL, opt_setattr },
 		{ "user-principal", optional_argument, NULL, opt_user_principal },
 		{ "trusted-for-delegation", required_argument, NULL, opt_trusted_for_delegation },
 		{ "dont-expire-password", required_argument, NULL, opt_dont_expire_password },
@@ -524,6 +533,7 @@ adcli_tool_computer_update (adcli_conn *conn,
 		{ "os-version", required_argument, NULL, opt_os_version },
 		{ "os-service-pack", optional_argument, NULL, opt_os_service_pack },
 		{ "description", optional_argument, NULL, opt_description },
+		{ "setattr", required_argument, NULL, opt_setattr },
 		{ "user-principal", optional_argument, NULL, opt_user_principal },
 		{ "computer-password-lifetime", optional_argument, NULL, opt_computer_password_lifetime },
 		{ "trusted-for-delegation", required_argument, NULL, opt_trusted_for_delegation },

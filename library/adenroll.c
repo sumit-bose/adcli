@@ -150,6 +150,7 @@ struct _adcli_enroll {
 	bool account_disable;
 	int account_disable_explicit;
 	char *description;
+	char **setattr;
 };
 
 static const char *
@@ -795,6 +796,56 @@ calculate_enctypes (adcli_enroll *enroll, char **enctype)
 	return ADCLI_SUCCESS;
 }
 
+static LDAPMod **
+get_mods_for_attrs (adcli_enroll *enroll, int mod_op)
+{
+	size_t len;
+	size_t c;
+	char *end;
+	LDAPMod **mods = NULL;
+
+	len = _adcli_strv_len (enroll->setattr);
+	if (len == 0) {
+		return NULL;
+	}
+
+	mods = calloc (len + 1, sizeof (LDAPMod *));
+	return_val_if_fail (mods != NULL, NULL);
+
+	for (c = 0; c < len; c++) {
+		end = strchr (enroll->setattr[c], '=');
+		if (end == NULL) {
+			ldap_mods_free (mods, 1);
+			return NULL;
+		}
+
+		mods[c] = calloc (1, sizeof (LDAPMod));
+		if (mods[c] == NULL) {
+			ldap_mods_free (mods, 1);
+			return NULL;
+		}
+
+		mods[c]->mod_op = mod_op;
+		*end = '\0';
+		mods[c]->mod_type = strdup (enroll->setattr[c]);
+		*end = '=';
+		mods[c]->mod_values = calloc (2, sizeof (char *));
+		if (mods[c]->mod_type == NULL || mods[c]->mod_values == NULL) {
+			ldap_mods_free (mods, 1);
+			return NULL;
+		}
+
+		mods[c]->mod_values[0] = strdup (end + 1);
+		if (mods[c]->mod_values[0] == NULL) {
+			ldap_mods_free (mods, 1);
+			return NULL;
+		}
+	}
+
+	return mods;
+}
+
+
 static adcli_result
 create_computer_account (adcli_enroll *enroll,
                          LDAP *ldap)
@@ -828,6 +879,7 @@ create_computer_account (adcli_enroll *enroll,
 	size_t m;
 	uint32_t uac = UAC_WORKSTATION_TRUST_ACCOUNT | UAC_DONT_EXPIRE_PASSWORD ;
 	char *uac_str = NULL;
+	LDAPMod **extra_mods = NULL;
 
 	LDAPMod *all_mods[] = {
 		&objectClass,
@@ -845,7 +897,7 @@ create_computer_account (adcli_enroll *enroll,
 	};
 
 	size_t mods_count = sizeof (all_mods) / sizeof (LDAPMod *);
-	LDAPMod *mods[mods_count];
+	LDAPMod **mods;
 
 	if (adcli_enroll_get_trusted_for_delegation (enroll)) {
 		uac |= UAC_TRUSTED_FOR_DELEGATION;
@@ -868,6 +920,17 @@ create_computer_account (adcli_enroll *enroll,
 	}
 	vals_supportedEncryptionTypes[0] = val;
 
+	if (enroll->setattr != NULL) {
+		extra_mods = get_mods_for_attrs (enroll, LDAP_MOD_ADD);
+		if (extra_mods == NULL) {
+			_adcli_err ("Failed to add setattr attributes, "
+			            "just using defaults");
+		}
+	}
+
+	mods = calloc (mods_count + seq_count (extra_mods) + 1, sizeof (LDAPMod *));
+	return_val_if_fail (mods != NULL, ADCLI_ERR_UNEXPECTED);
+
 	m = 0;
 	for (c = 0; c < mods_count - 1; c++) {
 		/* Skip empty LDAP sttributes */
@@ -875,9 +938,15 @@ create_computer_account (adcli_enroll *enroll,
 			mods[m++] = all_mods[c];
 		}
 	}
+
+	for (c = 0; c < seq_count (extra_mods); c++) {
+		mods[m++] = extra_mods[c];
+	}
 	mods[m] = NULL;
 
 	ret = ldap_add_ext_s (ldap, enroll->computer_dn, mods, NULL, NULL);
+	ldap_mods_free (extra_mods, 1);
+	free (mods);
 	free (uac_str);
 	free (val);
 
@@ -1696,6 +1765,14 @@ update_computer_account (adcli_enroll *enroll)
 		LDAPMod *mods[] = { &description, NULL, };
 
 		res |= update_computer_attribute (enroll, ldap, mods);
+	}
+
+	if (res == ADCLI_SUCCESS && enroll->setattr != NULL) {
+		LDAPMod **mods = get_mods_for_attrs (enroll, LDAP_MOD_REPLACE);
+		if (mods != NULL) {
+			res |= update_computer_attribute (enroll, ldap, mods);
+			ldap_mods_free (mods, 1);
+		}
 	}
 
 	if (res != 0)
@@ -2751,6 +2828,7 @@ enroll_free (adcli_enroll *enroll)
 	free (enroll->user_principal);
 	_adcli_strv_free (enroll->service_names);
 	_adcli_strv_free (enroll->service_principals);
+	_adcli_strv_free (enroll->setattr);
 	_adcli_password_free (enroll->computer_password);
 
 	adcli_enroll_set_keytab_name (enroll, NULL);
@@ -3332,6 +3410,72 @@ adcli_enroll_add_service_principal_to_remove (adcli_enroll *enroll,
 	return_if_fail (enroll->service_principals_to_remove != NULL);
 }
 
+static int comp_attr_name (const char *s1, const char *s2)
+{
+	size_t c = 0;
+
+	/* empty strings cannot contain an attribute name */
+	if (s1 == NULL || s2 == NULL || *s1 == '\0' || *s2 == '\0') {
+		return 1;
+	}
+
+	for (c = 0 ; s1[c] != '\0' && s2[c] != '\0'; c++) {
+		if (s1[c] == '=' && s2[c] == '=') {
+			return 0;
+		} else if (tolower (s1[c]) != tolower (s2[c])) {
+			return 1;
+		}
+	}
+
+	return 1;
+}
+
+adcli_result
+adcli_enroll_add_setattr (adcli_enroll *enroll, const char *value)
+{
+	char *delim;
+
+	return_val_if_fail (enroll != NULL, ADCLI_ERR_CONFIG);
+	return_val_if_fail (value != NULL, ADCLI_ERR_CONFIG);
+
+	delim = strchr (value, '=');
+	if (delim == NULL) {
+		_adcli_err ("Missing '=' in setattr option [%s]", value);
+		return ADCLI_ERR_CONFIG;
+	}
+
+	if (*(delim + 1) == '\0') {
+		_adcli_err ("Missing value in setattr option [%s]", value);
+		return ADCLI_ERR_CONFIG;
+	}
+
+	*delim = '\0';
+	if (_adcli_strv_has_ex (default_ad_ldap_attrs, value, strcasecmp) == 1) {
+		_adcli_err ("Attribute [%s] cannot be set with setattr", value);
+		return ADCLI_ERR_CONFIG;
+	}
+	*delim = '=';
+
+	if (_adcli_strv_has_ex (enroll->setattr, value, comp_attr_name) == 1) {
+		_adcli_err ("Attribute [%s] already set", value);
+		return ADCLI_ERR_CONFIG;
+	}
+
+	enroll->setattr = _adcli_strv_add (enroll->setattr, strdup (value),
+	                                   NULL);
+	return_val_if_fail (enroll->setattr != NULL, ADCLI_ERR_CONFIG);
+
+	return ADCLI_SUCCESS;
+}
+
+const char **
+adcli_enroll_get_setattr (adcli_enroll *enroll)
+{
+	return_val_if_fail (enroll != NULL, NULL);
+	return (const char **) enroll->setattr;
+}
+
+
 #ifdef ADENROLL_TESTS
 
 #include "test.h"
@@ -3401,12 +3545,35 @@ test_adcli_enroll_get_permitted_keytab_enctypes (void)
 	adcli_conn_unref (conn);
 }
 
+static void
+test_comp_attr_name (void)
+{
+	assert_num_eq (1, comp_attr_name (NULL ,NULL));
+	assert_num_eq (1, comp_attr_name ("" ,NULL));
+	assert_num_eq (1, comp_attr_name ("" ,""));
+	assert_num_eq (1, comp_attr_name (NULL ,""));
+	assert_num_eq (1, comp_attr_name (NULL ,"abc=xyz"));
+	assert_num_eq (1, comp_attr_name ("" ,"abc=xyz"));
+	assert_num_eq (1, comp_attr_name ("abc=xyz", NULL));
+	assert_num_eq (1, comp_attr_name ("abc=xyz", ""));
+	assert_num_eq (1, comp_attr_name ("abc=xyz", "ab=xyz"));
+	assert_num_eq (1, comp_attr_name ("ab=xyz", "abc=xyz"));
+	assert_num_eq (1, comp_attr_name ("abcxyz", "abc=xyz"));
+	assert_num_eq (1, comp_attr_name ("abc=xyz", "abcxyz"));
+	assert_num_eq (1, comp_attr_name ("abc=xyz", "a"));
+	assert_num_eq (1, comp_attr_name ("a", "abc=xyz"));
+
+	assert_num_eq (0, comp_attr_name ("abc=xyz", "abc=xyz"));
+	assert_num_eq (0, comp_attr_name ("abc=xyz", "abc=123"));
+}
+
 int
 main (int argc,
       char *argv[])
 {
 	test_func (test_adcli_enroll_get_permitted_keytab_enctypes,
 	           "/attrs/adcli_enroll_get_permitted_keytab_enctypes");
+	test_func (test_comp_attr_name, "/attrs/comp_attr_name");
 	return test_run (argc, argv);
 }
 
