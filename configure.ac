@@ -98,13 +98,15 @@ AC_SUBST(LDAP_CFLAGS)
 # -------------------------------------------------------------------
 # resolv
 
-AC_MSG_CHECKING(for which library has res_query)
+AC_MSG_CHECKING([for which library has res_query, ns_get16 and ns_get32])
 for lib in "" "-lresolv"; do
 	saved_LIBS="$LIBS"
 	LIBS="$LIBS $lib"
 	AC_LINK_IFELSE([
 		AC_LANG_PROGRAM([#include <resolv.h>],
-		                [res_query (0, 0, 0, 0, 0)])
+		                [res_query (0, 0, 0, 0, 0);
+		                 ns_get32 (NULL);
+		                 ns_get16 (NULL);])
 	],
 	[ AC_MSG_RESULT(${lib:-libc}); have_res_query="yes"; break; ],
 	[ LIBS="$saved_LIBS" ])
