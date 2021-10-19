@@ -53,9 +53,10 @@ XSLTPROC_FLAGS = \
 XSLTPROC_MAN = \
 	$(XSLTPROC) $(XSLTPROC_FLAGS) http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl
 
-permissions.xml: ../library/adenroll.c adcli.xml
+permissions.xml: ../library/adenroll.c
 	echo "<itemizedlist>" > $@
-	grep '".*".*/\* :ADPermissions: ' $< | sed -e 's#.*"\(.*\)".*/\* :ADPermissions: \(.*\)\*/$$#<listitem><para>\1</para><itemizedlist><listitem><para>\2</para></listitem></itemizedlist></listitem>#' | sed -e 's#\*#</para></listitem><listitem><para>#g' >> $@
+	sed -n -e 's#.*"\(.*\)".* /\* :ADPermissions: \(.*\) \*/$$#<listitem><para>\1</para><itemizedlist><listitem><para>\2</para></listitem></itemizedlist></listitem>#p' $? \
+	    | sed -e 's# *\* *#</para></listitem><listitem><para>#g' >> $@
 	echo "</itemizedlist>" >> $@
 
 $(man8_MANS): permissions.xml
