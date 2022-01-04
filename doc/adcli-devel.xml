@@ -93,7 +93,7 @@ $ make install
 			environment.</para>
 
 			<para>Make sure that the <literal>--sysconfdir=/etc</literal> matches the directory
-			where the the MIT kerberos library stores its <literal>krb5.conf</literal>. This is
+			where the the MIT Kerberos library stores its <literal>krb5.conf</literal>. This is
 			usually <literal>/etc</literal></para>
 		</section>
 
@@ -171,7 +171,7 @@ $ make install
 		<title>Testing and Code Coverage</title>
 
 		<para>Low level input parsers and such code should have unit tests
-		excercizing it. Use the <literal>make check</literal> command to run all
+		exercising it. Use the <literal>make check</literal> command to run all
 		the tests. If you run it from a subdirectory only the tests in that
 		directory will be run.</para>
 

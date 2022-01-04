@@ -327,14 +327,14 @@ Password for Administrator:
 		</varlistentry>
 		<varlistentry>
 			<term><option>--service-name=<parameter>service</parameter></option></term>
-			<listitem><para>Additional service name for a kerberos
+			<listitem><para>Additional service name for a Kerberos
 			principal to be created on the computer account. This
 			option may be specified multiple times.</para></listitem>
 		</varlistentry>
 		<varlistentry>
 			<term><option>--user-principal=<parameter>host/name@REALM</parameter></option></term>
 			<listitem><para>Set the userPrincipalName field of the
-			computer account to this kerberos principal. If you omit
+			computer account to this Kerberos principal. If you omit
 			the value for this option, then a principal will be set
 			in the form of <code>host/host.example.com@REALM</code></para></listitem>
 		</varlistentry>
@@ -724,7 +724,7 @@ $ adcli create-user Fry --domain=domain.example.com \
 			the new created user account, which should be the user's
 			NIS domain is the NIS/YP service of Active Directory's Services for Unix (SFU)
 			are used. This is needed to let the 'UNIX attributes' tab of older Active
-			Directoy versions show the set UNIX specific attributes. If not specified
+			Directory versions show the set UNIX specific attributes. If not specified
 			adcli will try to determine the NIS domain automatically if needed.
 			</para></listitem>
 		</varlistentry>
@@ -894,14 +894,14 @@ Password for Administrator:
 		</varlistentry>
 		<varlistentry>
 			<term><option>--service-name=<parameter>service</parameter></option></term>
-			<listitem><para>Additional service name for a kerberos
+			<listitem><para>Additional service name for a Kerberos
 			principal to be created on the computer account. This
 			option may be specified multiple times.</para></listitem>
 		</varlistentry>
 		<varlistentry>
 			<term><option>--user-principal</option></term>
 			<listitem><para>Set the userPrincipalName field of the
-			computer account to this kerberos principal in the form
+			computer account to this Kerberos principal in the form
 			of <code>host/host.example.com@REALM</code></para></listitem>
 		</varlistentry>
 	</variablelist>
@@ -1015,7 +1015,7 @@ Password for Administrator:
 
 	<para>Since it is expected that a client will most probably join to the
 	Active Directory domain matching its DNS domain the managed service
-	account will be needed for a different Active directory domain and as a
+	account will be needed for a different Active Directory domain and as a
 	result the Active Directory domain name is a mandatory option. If
 	called with no other options <command>adcli create-msa</command>
 	will use the short hostname with an additional random suffix as
