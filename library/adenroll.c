@@ -43,6 +43,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <iconv.h>
+#include <lber.h>
 
 #ifndef SAMBA_DATA_TOOL
 #define SAMBA_DATA_TOOL "/usr/bin/net"
@@ -880,9 +882,72 @@ get_del_mods_for_attrs (adcli_enroll *enroll, int mod_op)
 	return mods;
 }
 
+static struct berval *get_unicode_pwd (char *pwd)
+{
+	iconv_t cd;
+	size_t s;
+	char *in = NULL;
+	char *in_ptr;
+	size_t in_size;
+	size_t len;
+	char *out = NULL;
+	char *out_ptr;
+	size_t out_size;
+	struct berval *bv = NULL;
+
+	if (pwd == NULL) {
+		return NULL;
+	}
+
+	if (asprintf (&in, "\"%s\"",pwd) < 0) {
+		return NULL;
+	}
+	in_ptr = in;
+	len = in_size = strlen (in);
+
+	out_size = 2*in_size;
+	out = malloc (out_size * sizeof (char));
+	out_ptr = out;
+
+	cd = iconv_open ("UTF-16LE", "UTF-8");
+	if (cd == (iconv_t) -1 ) {
+		goto done;
+	}
+
+	s = iconv (cd, &in_ptr,  &in_size, &out_ptr, &out_size);
+	if (s == (size_t) -1 || out_size != 0) {
+		goto done;
+	}
+
+	s = iconv (cd, NULL, NULL, &out_ptr, &out_size);
+	if (s == (size_t) -1) {
+		goto done;
+	}
+
+	if (iconv_close (cd) != 0) {
+		goto done;
+	}
+
+	bv = malloc (sizeof(struct berval));
+	if (bv == NULL) {
+		goto done;
+	}
+
+	bv->bv_len = 2*len;
+	bv->bv_val = out;
+
+done:
+	free (in);
+	if (bv == NULL) {
+		free (out);
+	}
+
+	return bv;
+}
+
 static adcli_result
 create_computer_account (adcli_enroll *enroll,
-                         LDAP *ldap)
+                         LDAP *ldap, int ldap_passwd)
 {
 	char *vals_objectClass[] = { enroll->is_service ? "msDS-ManagedServiceAccount" : "computer", NULL };
 	LDAPMod objectClass = { LDAP_MOD_ADD, "objectClass", { vals_objectClass, } };
@@ -905,6 +970,8 @@ create_computer_account (adcli_enroll *enroll,
 	LDAPMod servicePrincipalName = { LDAP_MOD_ADD, "servicePrincipalName", { enroll->service_principals, } };
 	char *vals_description[] = { enroll->description, NULL };
 	LDAPMod description = { LDAP_MOD_ADD, "description", { vals_description, }, };
+	struct berval *vals_unicodePwd[] = { NULL, NULL };
+	LDAPMod unicodePwd = { LDAP_MOD_ADD | LDAP_MOD_BVALUES, "unicodePwd", { NULL, } };
 
 	char *val = NULL;
 
@@ -927,11 +994,22 @@ create_computer_account (adcli_enroll *enroll,
 		&userPrincipalName,
 		&servicePrincipalName,
 		&description,
+		&unicodePwd,
 		NULL
 	};
 
 	size_t mods_count = sizeof (all_mods) / sizeof (LDAPMod *);
 	LDAPMod **mods;
+
+	if (ldap_passwd) {
+		_adcli_info ("Trying to set %s password with LDAP", s_or_c (enroll));
+
+		vals_unicodePwd[0] = get_unicode_pwd (enroll->computer_password);
+		if (vals_unicodePwd[0] == NULL) {
+			return ADCLI_ERR_FAIL;
+		}
+		unicodePwd.mod_vals.modv_bvals = vals_unicodePwd;
+	}
 
 	if (adcli_enroll_get_trusted_for_delegation (enroll)) {
 		uac |= UAC_TRUSTED_FOR_DELEGATION;
@@ -943,6 +1021,7 @@ create_computer_account (adcli_enroll *enroll,
 	}
 
 	if (asprintf (&uac_str, "%d", uac) < 0) {
+		ber_bvfree (vals_unicodePwd[0]);
 		return_val_if_reached (ADCLI_ERR_UNEXPECTED);
 	}
 	vals_userAccountControl[0] = uac_str;
@@ -950,6 +1029,7 @@ create_computer_account (adcli_enroll *enroll,
 	ret = calculate_enctypes (enroll, &val);
 	if (ret != ADCLI_SUCCESS) {
 		free (uac_str);
+		ber_bvfree (vals_unicodePwd[0]);
 		return ret;
 	}
 	vals_supportedEncryptionTypes[0] = val;
@@ -979,6 +1059,7 @@ create_computer_account (adcli_enroll *enroll,
 	mods[m] = NULL;
 
 	ret = ldap_add_ext_s (ldap, enroll->computer_dn, mods, NULL, NULL);
+	ber_bvfree (vals_unicodePwd[0]);
 	ldap_mods_free (extra_mods, 1);
 	free (mods);
 	free (uac_str);
@@ -1290,7 +1371,7 @@ get_service_account_name_from_ldap (adcli_enroll *enroll, LDAPMessage *results)
 
 static adcli_result
 locate_or_create_computer_account (adcli_enroll *enroll,
-                                   int allow_overwrite)
+                                   int allow_overwrite, int ldap_passwd)
 {
 	LDAPMessage *results = NULL;
 	LDAPMessage *entry = NULL;
@@ -1352,7 +1433,7 @@ locate_or_create_computer_account (adcli_enroll *enroll,
 
 	res = validate_computer_account (enroll, allow_overwrite, entry != NULL);
 	if (res == ADCLI_SUCCESS && entry == NULL)
-		res = create_computer_account (enroll, ldap);
+		res = create_computer_account (enroll, ldap, ldap_passwd);
 
 	/* Service account already exists, just continue and update the
 	 * password */
@@ -1364,6 +1445,47 @@ locate_or_create_computer_account (adcli_enroll *enroll,
 		ldap_msgfree (results);
 
 	return res;
+}
+
+static adcli_result
+set_password_with_ldap (adcli_enroll *enroll)
+{
+	LDAP *ldap;
+	int ret;
+	struct berval *vals_unicodePwd[] = { NULL, NULL };
+	LDAPMod unicodePwd = { LDAP_MOD_REPLACE | LDAP_MOD_BVALUES, "unicodePwd", { NULL, } };
+
+	LDAPMod *all_mods[] = {
+		&unicodePwd,
+		NULL
+	};
+
+	ldap = adcli_conn_get_ldap_connection (enroll->conn);
+	return_unexpected_if_fail (ldap != NULL);
+
+	vals_unicodePwd[0] = get_unicode_pwd (enroll->computer_password);
+	return_unexpected_if_fail (vals_unicodePwd[0] != NULL);
+	unicodePwd.mod_vals.modv_bvals = vals_unicodePwd;
+
+	_adcli_info ("Trying to set %s password with LDAP", s_or_c (enroll));
+
+	ret = ldap_modify_ext_s (ldap, enroll->computer_dn, all_mods, NULL, NULL);
+	ber_bvfree (vals_unicodePwd[0]);
+
+	if (ret == LDAP_INSUFFICIENT_ACCESS || ret == LDAP_OBJECT_CLASS_VIOLATION ||
+	    ret == LDAP_UNWILLING_TO_PERFORM || ret == LDAP_CONSTRAINT_VIOLATION) {
+		return _adcli_ldap_handle_failure (ldap, ADCLI_ERR_CREDENTIALS,
+		                                   "Insufficient permissions to set password for: %s",
+		                                   enroll->computer_dn);
+
+	} else if (ret != LDAP_SUCCESS) {
+		return _adcli_ldap_handle_failure (ldap, ADCLI_ERR_DIRECTORY,
+		                                   "Couldn't set password for: %s",
+		                                   enroll->computer_dn);
+	}
+
+	_adcli_info ("Set password for: %s", enroll->computer_dn);
+	return ADCLI_SUCCESS;
 }
 
 static adcli_result
@@ -1389,6 +1511,8 @@ set_password_with_user_creds (adcli_enroll *enroll)
 
 	memset (&result_string, 0, sizeof (result_string));
 	memset (&result_code_string, 0, sizeof (result_code_string));
+
+	_adcli_info ("Trying to set %s password with Kerberos", s_or_c (enroll));
 
 	code = krb5_set_password_using_ccache (k5, ccache, enroll->computer_password,
 	                                       enroll->computer_principal, &result_code,
@@ -1452,6 +1576,8 @@ set_password_with_computer_creds (adcli_enroll *enroll)
 	k5 = adcli_conn_get_krb5_context (enroll->conn);
 	return_unexpected_if_fail (k5 != NULL);
 
+	_adcli_info ("Trying to change %s password with Kerberos", s_or_c (enroll));
+
 	code = _adcli_kinit_computer_creds (enroll->conn, "kadmin/changepw", NULL, &creds);
 	if (code != 0) {
 		_adcli_err ("Couldn't get change password ticket for %s account: %s: %s",
@@ -1506,8 +1632,12 @@ set_password_with_computer_creds (adcli_enroll *enroll)
 }
 
 static adcli_result
-set_computer_password (adcli_enroll *enroll)
+set_computer_password (adcli_enroll *enroll, int ldap_passwd)
 {
+	if (ldap_passwd) {
+		return set_password_with_ldap (enroll);
+	}
+
 	if (adcli_conn_get_login_type (enroll->conn) == ADCLI_LOGIN_COMPUTER_ACCOUNT)
 		return set_password_with_computer_creds (enroll);
 	else
@@ -2434,7 +2564,7 @@ enroll_join_or_update_tasks (adcli_enroll *enroll,
 			adcli_enroll_set_kvno (enroll, 0);
 		}
 
-		res = set_computer_password (enroll);
+		res = set_computer_password (enroll, flags & ADCLI_ENROLL_LDAP_PASSWD);
 		if (res != ADCLI_SUCCESS)
 			return res;
 	}
@@ -2587,7 +2717,8 @@ adcli_enroll_join (adcli_enroll *enroll,
 		return res;
 
 	/* This is where it really happens */
-	res = locate_or_create_computer_account (enroll, flags & ADCLI_ENROLL_ALLOW_OVERWRITE);
+	res = locate_or_create_computer_account (enroll, flags & ADCLI_ENROLL_ALLOW_OVERWRITE,
+	                                         flags & ADCLI_ENROLL_LDAP_PASSWD);
 	if (res != ADCLI_SUCCESS)
 		return res;
 
@@ -2769,8 +2900,7 @@ adcli_enroll_delete (adcli_enroll *enroll,
 }
 
 adcli_result
-adcli_enroll_password (adcli_enroll *enroll,
-                       adcli_enroll_flags password_flags)
+adcli_enroll_password (adcli_enroll *enroll)
 {
 	adcli_result res = ADCLI_SUCCESS;
 	LDAP *ldap;
@@ -2809,7 +2939,7 @@ adcli_enroll_password (adcli_enroll *enroll,
 		}
 	}
 
-	return set_computer_password (enroll);
+	return set_computer_password (enroll, 0);
 }
 
 adcli_enroll *

@@ -426,6 +426,17 @@ Password for Administrator:
 			be used to specific an alternative location with the
 			help of an absolute path.</para></listitem>
 		</varlistentry>
+		<varlistentry>
+			<term><option>--ldap-passwd</option></term>
+			<listitem><para>Use LDAP add/mod operations to set the
+			machine account password instead of Kerberos. This
+			might help in some situations where Kerberos fails or
+			is unreliable. But please note that 'Change password'
+			or 'Reset password' permissions or similar might be
+			needed to make the LDAP operation work. Additionally
+			there will be no read-only domain controller (RODC)
+			support as there is with Kerberos.</para></listitem>
+		</varlistentry>
 	</variablelist>
 
 	<para>If supported on the AD side the
@@ -620,6 +631,17 @@ $ adcli update --login-ccache=/tmp/krbcc_123
 			<filename>&samba_data_tool;</filename>, this option can
 			be used to specific an alternative location with the
 			help of an absolute path.</para></listitem>
+		</varlistentry>
+		<varlistentry>
+			<term><option>--ldap-passwd</option></term>
+			<listitem><para>Use LDAP add/mod operations to set the
+			machine account password instead of Kerberos. This
+			might help in some situations where Kerberos fails or
+			is unreliable. But please note that 'Change password'
+			or 'Rest password' permissions or similar might be
+			needed to make the LDAP operation work. Additionally
+			there will be no read-only domain controller (RODC)
+			support as there is with Kerberos.</para></listitem>
 		</varlistentry>
 	</variablelist>
 

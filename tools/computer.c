@@ -118,6 +118,7 @@ typedef enum {
 	opt_delattr,
 	opt_use_ldaps,
 	opt_account_disable,
+	opt_ldap_passwd,
 } Option;
 
 static adcli_tool_desc common_usages[] = {
@@ -169,6 +170,7 @@ static adcli_tool_desc common_usages[] = {
 	{ opt_add_samba_data, "add domain SID and computer account password\n"
 	                      "to the Samba specific configuration database" },
 	{ opt_samba_data_tool, "Absolute path to the tool used for add-samba-data" },
+	{ opt_ldap_passwd, "Use LDAP add/mod operation to set/change password" },
 	{ opt_verbose, "show verbose progress and failure messages", },
 	{ 0 },
 };
@@ -360,6 +362,7 @@ parse_option (Option opt,
 	case opt_show_password:
 	case opt_one_time_password:
 	case opt_add_samba_data:
+	case opt_ldap_passwd:
 		assert (0 && "not reached");
 		break;
 	}
@@ -426,6 +429,7 @@ adcli_tool_computer_join (adcli_conn *conn,
 		{ "show-password", no_argument, NULL, opt_show_password },
 		{ "add-samba-data", no_argument, NULL, opt_add_samba_data },
 		{ "samba-data-tool", required_argument, 0, opt_samba_data_tool },
+		{ "ldap-passwd", no_argument, NULL, opt_ldap_passwd },
 		{ "verbose", no_argument, NULL, opt_verbose },
 		{ "help", no_argument, NULL, 'h' },
 		{ 0 },
@@ -456,6 +460,9 @@ adcli_tool_computer_join (adcli_conn *conn,
 			break;
 		case opt_add_samba_data:
 			flags |= ADCLI_ENROLL_ADD_SAMBA_DATA;
+			break;
+		case opt_ldap_passwd:
+			flags |= ADCLI_ENROLL_LDAP_PASSWD;
 			break;
 		case 'h':
 		case '?':
@@ -554,6 +561,7 @@ adcli_tool_computer_update (adcli_conn *conn,
 		{ "show-password", no_argument, NULL, opt_show_password },
 		{ "add-samba-data", no_argument, NULL, opt_add_samba_data },
 		{ "samba-data-tool", required_argument, 0, opt_samba_data_tool },
+		{ "ldap-passwd", no_argument, NULL, opt_ldap_passwd },
 		{ "verbose", no_argument, NULL, opt_verbose },
 		{ "help", no_argument, NULL, 'h' },
 		{ 0 },
@@ -580,6 +588,9 @@ adcli_tool_computer_update (adcli_conn *conn,
 			break;
 		case opt_add_samba_data:
 			flags |= ADCLI_ENROLL_ADD_SAMBA_DATA;
+			break;
+		case opt_ldap_passwd:
+			flags |= ADCLI_ENROLL_LDAP_PASSWD;
 			break;
 		case 'h':
 		case '?':
@@ -916,7 +927,7 @@ adcli_tool_computer_reset (adcli_conn *conn,
 	parse_fqdn_or_name (enroll, argv[0]);
 	adcli_enroll_reset_computer_password (enroll);
 
-	res = adcli_enroll_password (enroll, 0);
+	res = adcli_enroll_password (enroll);
 	if (res != ADCLI_SUCCESS) {
 		warnx ("resetting %s in %s domain failed: %s", argv[0],
 		       adcli_conn_get_domain_name (conn),

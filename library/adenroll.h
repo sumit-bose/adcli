@@ -31,6 +31,7 @@ typedef enum {
 	ADCLI_ENROLL_ALLOW_OVERWRITE = 1 << 2,
 	ADCLI_ENROLL_PASSWORD_VALID = 1 << 3,
 	ADCLI_ENROLL_ADD_SAMBA_DATA = 1 << 4,
+	ADCLI_ENROLL_LDAP_PASSWD = 1 << 5,
 } adcli_enroll_flags;
 
 typedef struct _adcli_enroll adcli_enroll;
@@ -54,8 +55,7 @@ adcli_result       adcli_enroll_show_computer_attribute (adcli_enroll *enroll);
 adcli_result       adcli_enroll_delete                  (adcli_enroll *enroll,
                                                          adcli_enroll_flags delete_flags);
 
-adcli_result       adcli_enroll_password                (adcli_enroll *enroll,
-                                                         adcli_enroll_flags password_flags);
+adcli_result       adcli_enroll_password                (adcli_enroll *enroll);
 
 adcli_enroll *     adcli_enroll_new                     (adcli_conn *conn);
 
