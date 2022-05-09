@@ -74,6 +74,11 @@ struct {
 static char
 short_option (int opt)
 {
+	// isalpha and isdigit require the argument to be representable as unsigned char
+	// if they're not representable as unsigned char, then we assume they're not printable -
+	// matching for example the enumerator definitions in computer.c
+	if (opt != (int)(unsigned char)opt)
+		return 0;
 	if (isalpha (opt) || isdigit (opt))
 		return (char)opt;
 	return 0;
