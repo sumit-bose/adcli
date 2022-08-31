@@ -75,7 +75,7 @@
 		<command>adcli add-member</command>
 		<arg choice="opt">--domain=domain.example.com</arg>
 		<arg choice="plain">group</arg>
-		<arg choice="plain" rep="repeat">user</arg>
+		<arg choice="plain" rep="repeat">user or computer</arg>
 	</cmdsynopsis>
 	<cmdsynopsis>
 		<command>adcli remove-member</command>
@@ -812,10 +812,12 @@ $ adcli delete-group Pilots --domain=domain.example.com
 
 	<para><command>adcli add-member</command> adds one or more users to a
 	group in the domain. The group is specified first, and then the various
-	users to be added.</para>
+	users or computers to be added.
+	You must use dollar sign for computer account (computername$)</para>
 
 <programlisting>
 $ adcli add-member --domain=domain.example.com Pilots Leela Scruffy
+$ adcli add-member --domain=domain.example.com servers srv-smb$
 </programlisting>
 
 	<para>The various global options can be used.</para>

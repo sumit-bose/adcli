@@ -743,6 +743,7 @@ adcli_tool_member_add (adcli_conn *conn,
 
 	static adcli_tool_desc usages[] = {
 		{ 0, "usage: adcli add-member --domain=xxxx group user ..." },
+		{ 0, "       adcli add-member --domain=xxxx group computer$ ... (dollar sign is required for computer account)" },
 		{ 0 },
 	};
 
