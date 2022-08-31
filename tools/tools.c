@@ -343,7 +343,14 @@ setup_krb5_conf_directory (adcli_conn *conn)
 	}
 
 	if (!failed) {
-		if (mkdtemp (directory) == NULL) {
+		mode_t old_umask;
+		char *dtemp = NULL;
+
+		old_umask = umask (0077);
+		dtemp = mkdtemp (directory);
+		umask (old_umask);
+
+		if (dtemp == NULL) {
 			errn = errno;
 			failed = 1;
 			warnx ("couldn't create temporary directory in: %s: %s",
