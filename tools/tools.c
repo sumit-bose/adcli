@@ -36,6 +36,7 @@
 #include <paths.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <termios.h>
 
 
 static char *adcli_temp_directory = NULL;
@@ -208,6 +209,47 @@ command_usage (void)
 	printf ("\nSee 'adcli <command> --help' for more information\n");
 }
 
+static char *get_password (const char *prompt)
+{
+	int ret;
+	struct termios termios;
+	struct termios orig_termios;
+	char *buf = NULL;
+	size_t buf_len = 0;
+
+	ret = tcgetattr (fileno (stdin), &termios);
+	if (ret != 0 ) {
+		return NULL;
+	}
+
+	orig_termios = termios;
+	termios.c_lflag &= ~ECHO;
+
+	ret = tcsetattr (fileno (stdin), TCSAFLUSH, &termios);
+	if (ret != 0) {
+		return NULL;
+	}
+
+	fprintf (stdout, "%s", prompt);
+	fflush (stdout);
+
+	ret = getline (&buf, &buf_len, stdin);
+	tcsetattr (fileno (stdin), TCSAFLUSH, &orig_termios);
+	if (ret <= 0) {
+		free (buf);
+		return NULL;
+	}
+
+	if (buf[ret - 1] == '\n') {
+		/* remove new-line character from the end of the buffer and
+		 * echo it to stdout */
+		buf[ret - 1] = '\0';
+		fprintf (stdout, "\n");
+	}
+
+	return buf;
+}
+
 char *
 adcli_prompt_password_func (adcli_login_type login_type,
                             const char *name,
@@ -221,7 +263,7 @@ adcli_prompt_password_func (adcli_login_type login_type,
 	if (asprintf (&prompt, "Password for %s: ", name) < 0)
 		return_val_if_reached (NULL);
 
-	password = getpass (prompt);
+	password = get_password (prompt);
 	free (prompt);
 
 	if (password == NULL)
@@ -229,6 +271,7 @@ adcli_prompt_password_func (adcli_login_type login_type,
 
 	result = strdup (password);
 	adcli_mem_clear (password, strlen (password));
+	free (password);
 
 	return result;
 }
