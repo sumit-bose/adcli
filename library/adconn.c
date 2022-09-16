@@ -75,6 +75,7 @@ struct _adcli_conn_ctx {
 	char *domain_short;
 	char *domain_sid;
 	adcli_disco *domain_disco;
+	enum conn_is_writeable is_writeable;
 	char *default_naming_context;
 	char *configuration_naming_context;
 	char **supported_capabilities;
@@ -149,10 +150,14 @@ disco_dance_if_necessary (adcli_conn *conn)
 		return;
 
 	if (conn->domain_controller)
-		adcli_disco_host (conn->domain_controller, &conn->domain_disco);
+		adcli_disco_host (conn->domain_controller,
+		                  adcli_conn_get_use_ldaps (conn),
+		                  &conn->domain_disco);
 
 	else if (conn->domain_name)
-		adcli_disco_domain (conn->domain_name, &conn->domain_disco);
+		adcli_disco_domain (conn->domain_name,
+		                    adcli_conn_get_use_ldaps (conn),
+		                    &conn->domain_disco);
 
 	if (conn->domain_disco) {
 		if (!conn->domain_short && conn->domain_disco->domain_short) {
@@ -1182,6 +1187,26 @@ lookup_domain_sid (adcli_conn *conn)
 }
 
 static void
+lookup_is_writeable (adcli_conn *conn)
+{
+	char *attrs[] = { "NetLogon", NULL };
+	LDAPMessage *results;
+	int ret;
+
+	ret = ldap_search_ext_s (conn->ldap, "", LDAP_SCOPE_BASE,
+	                         "(&(NtVer=\\06\\00\\00\\00)(AAC=\\00\\00\\00\\00))",
+	                         attrs, 0, NULL, NULL, NULL, -1, &results);
+	if (ret == LDAP_SUCCESS) {
+		conn->is_writeable = disco_get_writeable (conn->ldap, results);
+		ldap_msgfree (results);
+	} else {
+		_adcli_ldap_handle_failure (conn->ldap, ADCLI_ERR_DIRECTORY,
+		                            "Couldn't lookup writeable state");
+		conn->is_writeable = IS_UNKNOWN;
+	}
+}
+
+static void
 conn_clear_state (adcli_conn *conn)
 {
 	conn->ldap_authenticated = 0;
@@ -1262,6 +1287,7 @@ adcli_conn_connect (adcli_conn *conn)
 
 	lookup_short_name (conn);
 	lookup_domain_sid (conn);
+	lookup_is_writeable (conn);
 	return ADCLI_SUCCESS;
 }
 
@@ -1702,11 +1728,9 @@ adcli_conn_server_has_sasl_mech (adcli_conn *conn,
 
 bool adcli_conn_is_writeable (adcli_conn *conn)
 {
-	disco_dance_if_necessary (conn);
-
-	if (conn->domain_disco == NULL) {
-		return false;
+	if (conn->is_writeable == IS_UNKNOWN) {
+		lookup_is_writeable (conn);
 	}
 
-	return ( (conn->domain_disco->flags & ADCLI_DISCO_WRITABLE) != 0);
+	return (conn->is_writeable == IS_WRITEABLE);
 }

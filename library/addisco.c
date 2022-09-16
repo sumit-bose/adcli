@@ -455,6 +455,35 @@ parse_disco (LDAP *ldap,
 	return usability;
 }
 
+enum conn_is_writeable disco_get_writeable (LDAP *ldap, LDAPMessage *message)
+{
+	adcli_disco *disco = NULL;
+	LDAPMessage *entry;
+	struct berval **bvs;
+
+	entry = ldap_first_entry (ldap, message);
+	if (entry != NULL) {
+		bvs = ldap_get_values_len (ldap, entry, "NetLogon");
+		if (bvs != NULL) {
+			if (!bvs[0])
+				disco = NULL;
+			else
+				disco = parse_disco_data (bvs[0]);
+			ldap_value_free_len (bvs);
+		}
+	}
+
+	if (disco == NULL) {
+		return IS_UNKNOWN;
+	}
+
+	if ( (disco->flags & ADCLI_DISCO_WRITABLE) != 0) {
+		return IS_WRITEABLE;
+	} else {
+		return  IS_NOT_WRITEABLE;
+	}
+}
+
 static int
 ldap_disco_poller (LDAP **ldap,
                    LDAPMessage **message,
@@ -501,8 +530,143 @@ ldap_disco_poller (LDAP **ldap,
 }
 
 static int
+ldaps_disco (const char *domain,
+            srvinfo *srv,
+            adcli_disco **results)
+{
+	char *attrs[] = { "NetLogon", NULL };
+	LDAP *ldap[DISCO_COUNT];
+	const char *addrs[DISCO_COUNT];
+	int found = ADCLI_DISCO_UNUSABLE;
+	LDAPMessage *message;
+	char buffer[1024];
+	struct addrinfo hints;
+	struct addrinfo *res;
+	const char *scheme;
+	int msgidp;
+	int version;
+	char *url;
+	char *filter;
+	char *value;
+	int num;
+	int ret;
+	struct timeval interval;
+	int parsed;
+
+	if (domain) {
+		value = _adcli_ldap_escape_filter (domain);
+		return_val_if_fail (value != NULL, 0);
+		if (asprintf (&filter, "(&(DnsDomain=%s)(NtVer=\\06\\00\\00\\00))", value) < 0)
+			return_val_if_reached (0);
+		free (value);
+	} else {
+		if (asprintf (&filter, "(&(NtVer=\\06\\00\\00\\00)(AAC=\\00\\00\\00\\00))") < 0)
+			return_val_if_reached (0);
+	}
+
+	memset (addrs, 0, sizeof (addrs));
+	memset (ldap, 0, sizeof (ldap));
+
+	scheme = "ldaps";
+
+	/*
+	 * The ai_socktype and ai_protocol hint fields are unused below,
+	 * but are set in order to prevent duplicate returns from
+	 * getaddrinfo().
+	 */
+	memset (&hints, 0, sizeof (hints));
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	/* For ldaps we have to use the DNS name of the LDAP server so that
+	 * libldap can check if the name from the certificate matches the
+	 * server name. With AI_NUMERICHOST we check if srv->hostname is an IP
+	 * address or not. */
+	hints.ai_flags |= AI_NUMERICHOST;
+	hints.ai_flags |= AI_NUMERICSERV;
+#ifdef AI_ADDRCONFIG
+	hints.ai_flags |= AI_ADDRCONFIG;
+#endif
+
+	for (num = 0; ADCLI_DISCO_UNUSABLE == found && srv != NULL && num < DISCO_COUNT; srv = srv->next) {
+		ret = getaddrinfo (srv->hostname, "389", &hints, &res);
+		if (ret == 0) {
+			ret = getnameinfo (res->ai_addr, res->ai_addrlen,
+			                   buffer, sizeof (buffer), NULL, 0,
+			                   NI_NAMEREQD);
+			freeaddrinfo (res);
+			if (ret != 0) {
+				_adcli_warn ("Couldn't resolve server name: %s: %s",
+				             srv->hostname, gai_strerror (ret));
+				continue;
+			}
+		} else if (ret != 0 && ret != EAI_NONAME) {
+			_adcli_warn ("Couldn't resolve server host: %s: %s",
+			             srv->hostname, gai_strerror (ret));
+			continue;
+		}
+
+		if (asprintf (&url, "%s://%s", scheme, buffer) < 0) {
+			return_val_if_reached (0);
+		}
+
+		ret = ldap_initialize (&ldap[num], url);
+		if (ret == LDAP_SUCCESS) {
+			version = LDAP_VERSION3;
+			ldap_set_option (ldap[num], LDAP_OPT_PROTOCOL_VERSION, &version);
+			ldap_set_option (ldap[num], LDAP_OPT_REFERRALS , 0);
+			addrs[num] = srv->hostname;
+
+		} else {
+			_adcli_err ("Couldn't perform discovery on server: %s: %s", url, ldap_err2string (ret));
+			free (url);
+			continue;
+		}
+		free (url);
+
+		_adcli_info ("Sending LDAPS NetLogon ping to domain controller: %s", addrs[num]);
+
+		ret = ldap_search_ext (ldap[num], "", LDAP_SCOPE_BASE,
+		                       filter, attrs, 0, NULL, NULL, NULL,
+		                       -1, &msgidp);
+
+		if (ret != LDAP_SUCCESS) {
+			_adcli_ldap_handle_failure (ldap[num], ADCLI_ERR_CONFIG,
+			                            "Couldn't perform discovery search");
+			ldap_unbind_ext_s (ldap[num], NULL, NULL);
+			ldap[num] = NULL;
+			continue;
+		}
+
+		/* From https://msdn.microsoft.com/en-us/library/ff718294.aspx first
+		 * five DCs are given 0.4 seconds timeout, next five are given 0.2
+		 * seconds, and the rest are given 0.1 seconds
+		 */
+		if (num < 5) {
+			interval.tv_usec = 400000;
+		} else if (num < 10) {
+			interval.tv_usec = 200000;
+		} else {
+			interval.tv_usec = 100000;
+		}
+		select (0, NULL, NULL, NULL, &interval);
+
+		parsed = ldap_disco_poller (&(ldap[num]), &message, results, &(addrs[num]));
+		if (ldap[num] != NULL) {
+			ldap_unbind_ext_s (ldap[num], NULL, NULL);
+		}
+		if (parsed > found) {
+			found = parsed;
+		}
+	}
+
+	free (filter);
+	return found;
+}
+
+static int
 ldap_disco (const char *domain,
             srvinfo *srv,
+            bool use_ldaps,
             adcli_disco **results)
 {
 	char *attrs[] = { "NetLogon", NULL };
@@ -525,6 +689,7 @@ ldap_disco (const char *domain,
 	int ret;
 	int have_any = 0;
 	struct timeval interval;
+	srvinfo *my_srv;
 
 	if (domain) {
 		value = _adcli_ldap_escape_filter (domain);
@@ -559,11 +724,12 @@ ldap_disco (const char *domain,
 	hints.ai_flags |= AI_ADDRCONFIG;
 #endif
 
-	for (num = 0; srv != NULL; srv = srv->next) {
-		ret = getaddrinfo (srv->hostname, "389", &hints, &res);
+	my_srv = srv;
+	for (num = 0; my_srv != NULL; my_srv = my_srv->next) {
+		ret = getaddrinfo (my_srv->hostname, "389", &hints, &res);
 		if (ret != 0) {
 			_adcli_warn ("Couldn't resolve server host: %s: %s",
-			             srv->hostname, gai_strerror (ret));
+			             my_srv->hostname, gai_strerror (ret));
 			continue;
 		}
 
@@ -588,7 +754,7 @@ ldap_disco (const char *domain,
 				version = LDAP_VERSION3;
 				ldap_set_option (ldap[num], LDAP_OPT_PROTOCOL_VERSION, &version);
 				ldap_set_option (ldap[num], LDAP_OPT_REFERRALS , 0);
-				addrs[num] = srv->hostname;
+				addrs[num] = my_srv->hostname;
 				have_any = 1;
 				num++;
 
@@ -671,6 +837,11 @@ ldap_disco (const char *domain,
 	}
 
 	free (filter);
+
+	if (found == ADCLI_DISCO_UNUSABLE && use_ldaps) {
+		found = ldaps_disco (domain, srv, results);
+	}
+
 	return found;
 }
 
@@ -698,7 +869,7 @@ fill_disco (adcli_disco **results,
 }
 
 static int
-site_disco (adcli_disco *disco,
+site_disco (adcli_disco *disco, bool use_ldaps,
             adcli_disco **results)
 {
 	srvinfo *srv;
@@ -741,7 +912,7 @@ site_disco (adcli_disco *disco,
 	 * Now that we have discovered the site domain controllers do a
 	 * second round of cldap discovery.
 	 */
-	found = ldap_disco (disco->domain, srv, results);
+	found = ldap_disco (disco->domain, srv, use_ldaps, results);
 
 	fill_disco (results, ADCLI_DISCO_MAYBE,
 	            disco->domain, disco->client_site, srv);
@@ -752,7 +923,7 @@ site_disco (adcli_disco *disco,
 }
 
 int
-adcli_disco_domain (const char *domain,
+adcli_disco_domain (const char *domain, bool use_ldaps,
                     adcli_disco **results)
 {
 	char *rrname;
@@ -791,10 +962,10 @@ adcli_disco_domain (const char *domain,
 	if (ret != 0)
 		return 0;
 
-	found = ldap_disco (domain, srv, results);
+	found = ldap_disco (domain, srv, use_ldaps, results);
 	if (found == ADCLI_DISCO_MAYBE) {
 		assert (*results);
-		found = site_disco (*results, results);
+		found = site_disco (*results, use_ldaps, results);
 	}
 
 	fill_disco (results, ADCLI_DISCO_MAYBE, domain, NULL, srv);
@@ -804,7 +975,7 @@ adcli_disco_domain (const char *domain,
 }
 
 int
-adcli_disco_host (const char *host,
+adcli_disco_host (const char *host, bool use_ldaps,
                   adcli_disco **results)
 {
 	srvinfo srv;
@@ -817,7 +988,7 @@ adcli_disco_host (const char *host,
 	memset (&srv, 0, sizeof (srv));
 	srv.hostname = (char *)host;
 
-	return ldap_disco (NULL, &srv, results);
+	return ldap_disco (NULL, &srv, use_ldaps, results);
 }
 
 void

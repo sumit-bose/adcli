@@ -168,14 +168,14 @@ adcli_tool_info (adcli_conn *unused,
 	}
 
 	if (server) {
-		adcli_disco_host (server, &disco);
+		adcli_disco_host (server, false, &disco);
 		if (disco == NULL) {
 			warnx ("couldn't discover domain controller: %s", server);
 			return 1;
 		}
 		for_host = 1;
 	} else if (domain) {
-		adcli_disco_domain (domain, &disco);
+		adcli_disco_domain (domain, false, &disco);
 		if (disco == NULL) {
 			warnx ("couldn't discover domain: %s", domain);
 			return 1;

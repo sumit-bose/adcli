@@ -56,10 +56,10 @@ typedef struct _adcli_disco {
 	struct _adcli_disco *next;
 } adcli_disco;
 
-int           adcli_disco_domain            (const char *domain,
+int           adcli_disco_domain            (const char *domain, bool use_ldaps,
                                              adcli_disco **disco);
 
-int           adcli_disco_host              (const char *host,
+int           adcli_disco_host              (const char *host, bool use_ldaps,
                                              adcli_disco **disco);
 
 void          adcli_disco_free              (adcli_disco *disco);
@@ -71,5 +71,7 @@ enum {
 };
 
 int           adcli_disco_usable            (adcli_disco *disco);
+
+enum conn_is_writeable disco_get_writeable (LDAP *ldap, LDAPMessage *message);
 
 #endif /* ADDISCO_H_ */

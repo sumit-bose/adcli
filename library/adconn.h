@@ -35,6 +35,13 @@ typedef enum {
 	ADCLI_LOGIN_USER_ACCOUNT = 1 << 2,
 } adcli_login_type;
 
+enum conn_is_writeable {
+	IS_UNKNOWN = 0,
+	IS_NOT_WRITEABLE = 1,
+	IS_WRITEABLE
+};
+
+
 #define ADCLI_CAP_OID                      "1.2.840.113556.1.4.800"
 #define ADCLI_CAP_LDAP_INTEG_OID           "1.2.840.113556.1.4.1791"
 #define ADCLI_CAP_V51_OID                  "1.2.840.113556.1.4.1670"
