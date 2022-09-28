@@ -916,11 +916,13 @@ static struct berval *get_unicode_pwd (char *pwd)
 
 	s = iconv (cd, &in_ptr,  &in_size, &out_ptr, &out_size);
 	if (s == (size_t) -1 || out_size != 0) {
+		iconv_close (cd);
 		goto done;
 	}
 
 	s = iconv (cd, NULL, NULL, &out_ptr, &out_size);
 	if (s == (size_t) -1) {
+		iconv_close (cd);
 		goto done;
 	}
 

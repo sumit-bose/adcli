@@ -460,6 +460,7 @@ enum conn_is_writeable disco_get_writeable (LDAP *ldap, LDAPMessage *message)
 	adcli_disco *disco = NULL;
 	LDAPMessage *entry;
 	struct berval **bvs;
+	unsigned int flags;
 
 	entry = ldap_first_entry (ldap, message);
 	if (entry != NULL) {
@@ -477,7 +478,10 @@ enum conn_is_writeable disco_get_writeable (LDAP *ldap, LDAPMessage *message)
 		return IS_UNKNOWN;
 	}
 
-	if ( (disco->flags & ADCLI_DISCO_WRITABLE) != 0) {
+	flags = disco->flags;
+	adcli_disco_free (disco);
+
+	if ( (flags & ADCLI_DISCO_WRITABLE) != 0) {
 		return IS_WRITEABLE;
 	} else {
 		return  IS_NOT_WRITEABLE;
