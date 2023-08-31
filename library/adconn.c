@@ -85,6 +85,7 @@ struct _adcli_conn_ctx {
 
 	/* Connect state */
 	LDAP *ldap;
+	struct sockaddr *addr;
 	int ldap_authenticated;
 	krb5_context k5;
 	krb5_ccache ccache;
@@ -792,7 +793,8 @@ int ldap_init_fd (ber_socket_t fd, int proto, LDAP_CONST char *url, struct ldap 
 static LDAP *
 connect_to_address (const char *host,
                     const char *canonical_host,
-                    bool use_ldaps)
+                    bool use_ldaps,
+		    struct sockaddr **addr)
 {
 	struct addrinfo *res = NULL;
 	struct addrinfo *ai;
@@ -875,6 +877,11 @@ connect_to_address (const char *host,
 	if (!ldap && error)
 		_adcli_err ("Couldn't connect to host: %s: %s", host, strerror (error));
 
+	*addr = malloc(sizeof(struct sockaddr));
+	if (*addr != NULL) {
+		memcpy(*addr, ai->ai_addr, sizeof(struct sockaddr));
+	}
+
 	freeaddrinfo (res);
 	/* coverity[leaked_handle] - the socket is carried inside the ldap struct */
 	return ldap;
@@ -888,6 +895,7 @@ connect_and_lookup_naming (adcli_conn *conn,
 	LDAPMessage *results;
 	adcli_result res;
 	LDAP *ldap;
+	struct sockaddr *addr;
 	int ret;
 	int ver;
 
@@ -900,13 +908,15 @@ connect_and_lookup_naming (adcli_conn *conn,
 	};
 
 	assert (conn->ldap == NULL);
+	assert (conn->addr == NULL);
 
 	canonical_host = disco->host_name;
 	if (!canonical_host)
 		canonical_host = disco->host_addr;
 
 	ldap = connect_to_address (disco->host_addr, canonical_host,
-	                           adcli_conn_get_use_ldaps (conn));
+				   adcli_conn_get_use_ldaps (conn),
+				   &addr);
 	if (ldap == NULL)
 		return ADCLI_ERR_DIRECTORY;
 
@@ -969,6 +979,7 @@ connect_and_lookup_naming (adcli_conn *conn,
 	}
 
 	conn->ldap = ldap;
+	conn->addr = addr;
 
 	free (conn->canonical_host);
 	conn->canonical_host = strdup (canonical_host);
@@ -1227,6 +1238,10 @@ conn_clear_state (adcli_conn *conn)
 	if (conn->ldap)
 		ldap_unbind_ext_s (conn->ldap, NULL, NULL);
 	conn->ldap = NULL;
+
+	if (conn->addr)
+		free(conn->addr);
+	conn->addr = NULL;
 
 	free (conn->canonical_host);
 	conn->canonical_host = NULL;
