@@ -83,6 +83,8 @@ void                adcli_conn_set_host_fqdn         (adcli_conn *conn,
 
 const char *        adcli_conn_get_domain_name       (adcli_conn *conn);
 
+const char *        adcli_conn_get_forest_name       (adcli_conn *conn);
+
 void                adcli_conn_set_domain_name       (adcli_conn *conn,
                                                       const char *value);
 
