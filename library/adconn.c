@@ -74,6 +74,7 @@ struct _adcli_conn_ctx {
 	char *canonical_host;
 	char *domain_short;
 	char *domain_sid;
+	char *domain_guid;
 	adcli_disco *domain_disco;
 	enum conn_is_writeable is_writeable;
 	char *default_naming_context;
@@ -163,6 +164,11 @@ disco_dance_if_necessary (adcli_conn *conn)
 		if (!conn->domain_short && conn->domain_disco->domain_short) {
 			conn->domain_short = strdup (conn->domain_disco->domain_short);
 			return_if_fail (conn->domain_short != NULL);
+		}
+
+		if (!conn->domain_guid && conn->domain_disco->domain_guid) {
+			conn->domain_guid = strdup(conn->domain_disco->domain_guid);
+			return_if_fail (conn->domain_guid != NULL);
 		}
 	}
 }
@@ -1313,6 +1319,7 @@ conn_free (adcli_conn *conn)
 	free (conn->domain_realm);
 	free (conn->domain_controller);
 	free (conn->domain_short);
+	free (conn->domain_guid);
 	free (conn->default_naming_context);
 	free (conn->configuration_naming_context);
 	_adcli_strv_free (conn->supported_capabilities);
@@ -1419,6 +1426,13 @@ adcli_conn_get_domain_name (adcli_conn *conn)
 {
 	return_val_if_fail (conn != NULL, NULL);
 	return conn->domain_name;
+}
+
+const char *
+adcli_conn_get_domain_guid(adcli_conn *conn)
+{
+	return_val_if_fail (conn != NULL, NULL);
+	return conn->domain_guid;
 }
 
 void
