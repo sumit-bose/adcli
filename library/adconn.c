@@ -1542,6 +1542,13 @@ adcli_conn_get_ldap_connection (adcli_conn *conn)
 	return conn->ldap;
 }
 
+struct sockaddr *
+adcli_conn_get_ldap_address (adcli_conn *conn)
+{
+	return_val_if_fail (conn != NULL, NULL);
+	return conn->addr;
+}
+
 krb5_context
 adcli_conn_get_krb5_context (adcli_conn *conn)
 {
