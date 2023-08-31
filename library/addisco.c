@@ -407,17 +407,6 @@ parse_guid (unsigned char **at,
 	return 1;
 }
 
-static int
-skip_n (unsigned char **at,
-        unsigned char *end,
-        int n)
-{
-	if (end - (*at) < n)
-		return 0;
-	(*at) += n;
-	return 1;
-}
-
 static adcli_disco *
 parse_disco_data (struct berval *bv)
 {
@@ -436,7 +425,7 @@ parse_disco_data (struct berval *bv)
 	/* domain forest */
 	if (!get_32_le (&at, end, &type) || type != 23 ||
 	    !get_32_le (&at, end, &disco->flags) ||
-	    !skip_n (&at, end, 16) || /* guid */
+	    !parse_guid (&at, end, &disco->domain_guid) ||
 	    !parse_disco_string (beg, end, &at, &disco->forest) ||
 	    !parse_disco_string (beg, end, &at, &disco->domain) ||
 	    !parse_disco_string (beg, end, &at, &disco->host_name) ||
@@ -1077,6 +1066,7 @@ adcli_disco_free (adcli_disco *disco)
 		free (disco->host_addr);
 		free (disco->host_name);
 		free (disco->host_short);
+		free (disco->domain_guid);
 		free (disco->forest);
 		free (disco->domain);
 		free (disco->domain_short);
