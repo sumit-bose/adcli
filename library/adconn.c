@@ -868,6 +868,7 @@ connect_to_address (const char *host,
 					break;
 				}
 			}
+			break;
 		}
 	}
 
