@@ -38,6 +38,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <sys/wait.h>
+#include <arpa/inet.h>
 
 static adcli_message_func message_func = NULL;
 static char last_error[2048] = { 0, };
@@ -757,6 +758,39 @@ done:
 	return ret;
 }
 
+adcli_result
+adcli_sockaddr_to_string(struct sockaddr *sa, char *addr, size_t addr_len)
+{
+	const char *p;
+
+	if (sa == NULL) {
+		return ADCLI_ERR_FAIL;
+	}
+
+	errno = 0;
+	switch (sa->sa_family) {
+		case AF_INET:
+			p = inet_ntop(AF_INET,
+		 &(((struct sockaddr_in *)sa)->sin_addr),
+		 addr, addr_len);
+		break;
+		case AF_INET6:
+			p = inet_ntop(AF_INET6,
+		 &(((struct sockaddr_in6 *)sa)->sin6_addr),
+		 addr, addr_len);
+		break;
+		default:
+			_adcli_err("Failed to get LDAP server address, unknown socket family");
+			return ADCLI_ERR_FAIL;
+	}
+
+	if (p == NULL) {
+		_adcli_err("Failed to convert LDAP server address: %s", strerror(errno));
+		return ADCLI_ERR_FAIL;
+	}
+
+	return ADCLI_SUCCESS;
+}
 
 #ifdef UTIL_TESTS
 
