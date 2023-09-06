@@ -2618,9 +2618,9 @@ enroll_join_or_update_tasks (adcli_enroll *enroll,
 	if ( (flags & ADCLI_ENROLL_ADD_SAMBA_DATA) && ! (flags & ADCLI_ENROLL_PASSWORD_VALID)) {
 		res = update_samba_data (enroll);
 		if (res != ADCLI_SUCCESS) {
-			_adcli_info ("Failed to add Samba specific data, smbd "
+			_adcli_warn ("Failed to add Samba specific data, smbd "
 			             "or winbindd might not work as "
-			             "expected.\n");
+			             "expected.");
 		}
 	}
 
