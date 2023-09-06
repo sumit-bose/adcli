@@ -679,7 +679,7 @@ _adcli_call_external_program (const char *binary, char * const *argv,
 		close (pipefd_to_child[0]);
 		pipefd_to_child[0] = -1;
 		close (pipefd_to_child[1]);
-		pipefd_to_child[0] = -1;
+		pipefd_to_child[1] = -1;
 
 		if (stdout_data != NULL || stdout_data_len != NULL) {
 			rlen = read (pipefd_from_child[0], read_buf, sizeof (read_buf));
