@@ -2384,14 +2384,14 @@ update_samba_data (adcli_enroll *enroll)
 		_adcli_info ("Trying to set domain SID %s for Samba.",
 		             argv_sid[2]);
 		ret = _adcli_call_external_program (argv_sid[0], argv_sid,
-		                                    NULL, NULL, NULL);
+		                                    NULL, NULL, NULL, NULL);
 		if (ret != ADCLI_SUCCESS) {
 			_adcli_err ("Failed to set Samba domain SID.");
 		}
 	}
 
 	_adcli_info ("Trying to set Samba secret.");
-	ret = _adcli_call_external_program (argv_pw[0], argv_pw,
+	ret = _adcli_call_external_program (argv_pw[0], argv_pw, NULL,
 	                                    enroll->computer_password, NULL, NULL);
 	if (ret != ADCLI_SUCCESS) {
 		_adcli_err ("Failed to set Samba computer account password.");

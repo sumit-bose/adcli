@@ -318,6 +318,7 @@ bool             _adcli_check_nt_time_string_lifetime (const char *nt_time_strin
 
 adcli_result     _adcli_call_external_program     (const char *binary,
                                                    char * const *argv,
+						   char * const *envp,
                                                    const char *stdin_data,
                                                    uint8_t **stdout_data,
                                                    size_t *stdout_data_len);

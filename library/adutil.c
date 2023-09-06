@@ -551,7 +551,7 @@ _adcli_check_nt_time_string_lifetime (const char *nt_time_string,
 
 adcli_result
 _adcli_call_external_program (const char *binary, char * const *argv,
-                              const char *stdin_data,
+			      char * const *envp, const char *stdin_data,
                               uint8_t **stdout_data, size_t *stdout_data_len)
 {
 	int ret;
@@ -565,6 +565,48 @@ _adcli_call_external_program (const char *binary, char * const *argv,
 	int status;
 	uint8_t read_buf[4096];
 	uint8_t *out;
+	char **child_env = NULL;
+	size_t child_env_size = 0;
+
+	/* prepare child environment, append envp to environ */
+	if (envp != NULL) {
+		size_t environ_size = 0;
+		size_t envp_size = 0;
+		int i, j;
+
+		for (i = 0; environ[i] != NULL; i++) {
+			environ_size++;
+		}
+
+		for (i = 0; envp[i] != NULL; i++) {
+			envp_size++;
+		}
+
+		child_env_size = environ_size + envp_size + 1;
+		child_env = calloc(child_env_size, sizeof(char *));
+		if (child_env == NULL) {
+			_adcli_err("Failed to allocate memory.");
+			return ADCLI_ERR_FAIL;
+		}
+
+		memset(child_env, 0, child_env_size);
+
+		for (i = 0, j = 0; environ[i] != NULL; i++, j++) {
+			child_env[j] = strdup(environ[i]);
+			if (child_env[j] == NULL) {
+				_adcli_err("Failed to allocate memory.");
+				return ADCLI_ERR_FAIL;
+			}
+		}
+
+		for (i = 0; envp[i] != NULL; i++, j++) {
+			child_env[j] = strdup(envp[i]);
+			if (child_env[j] == NULL) {
+				_adcli_err("Failed to allocate memory.");
+				return ADCLI_ERR_FAIL;
+			}
+		}
+	}
 
 	errno = 0;
 	ret = access (binary, X_OK);
@@ -613,7 +655,11 @@ _adcli_call_external_program (const char *binary, char * const *argv,
 			exit (EXIT_FAILURE);
 		}
 
-		execv (binary, argv);
+                if (child_env != NULL) {
+                        execve(binary, argv, child_env);
+                } else {
+                        execv(binary, argv);
+                }
 		_adcli_err ("Failed to run %s.", binary);
 		ret = ADCLI_ERR_FAIL;
 		goto done;
@@ -670,6 +716,13 @@ _adcli_call_external_program (const char *binary, char * const *argv,
 		_adcli_err ("Cannot run net command.");
 		ret = ADCLI_ERR_FAIL;
 		goto done;
+	}
+
+	if (child_env != NULL) {
+                for (int i = 0; i < child_env_size; i++) {
+                        free(child_env[i]);
+                }
+                free(child_env);
 	}
 
 	ret = ADCLI_SUCCESS;
@@ -853,25 +906,25 @@ test_call_external_program (void)
 	size_t stdout_data_len;
 
 	argv[0] = "/does/not/exists";
-	res = _adcli_call_external_program (argv[0], argv, NULL, NULL, NULL);
+	res = _adcli_call_external_program (argv[0], argv, NULL, NULL, NULL, NULL);
 	assert (res == ADCLI_ERR_FAIL);
 
 #ifdef BIN_CAT
 	argv[0] = BIN_CAT;
-	res = _adcli_call_external_program (argv[0], argv, "Hello",
+	res = _adcli_call_external_program (argv[0], argv, NULL, "Hello",
 	                                    &stdout_data, &stdout_data_len);
 	assert (res == ADCLI_SUCCESS);
 	assert (strncmp ("Hello", (char *) stdout_data, stdout_data_len) == 0);
 	free (stdout_data);
 
-	res = _adcli_call_external_program (argv[0], argv, "Hello",
+	res = _adcli_call_external_program (argv[0], argv, NULL, "Hello",
 	                                    NULL, NULL);
 	assert (res == ADCLI_SUCCESS);
 #endif
 
 #ifdef BIN_REV
 	argv[0] = BIN_REV;
-	res = _adcli_call_external_program (argv[0], argv, "Hello\n",
+	res = _adcli_call_external_program (argv[0], argv, NULL, "Hello\n",
 	                                    &stdout_data, &stdout_data_len);
 	assert (res == ADCLI_SUCCESS);
 	assert (strncmp ("olleH\n", (char *) stdout_data, stdout_data_len) == 0);
@@ -880,7 +933,7 @@ test_call_external_program (void)
 
 #ifdef BIN_TAC
 	argv[0] = BIN_TAC;
-	res = _adcli_call_external_program (argv[0], argv, "Hello\nWorld\n",
+	res = _adcli_call_external_program (argv[0], argv, NULL, "Hello\nWorld\n",
 	                                    &stdout_data, &stdout_data_len);
 	assert (res == ADCLI_SUCCESS);
 	assert (strncmp ("World\nHello\n", (char *) stdout_data, stdout_data_len) == 0);
@@ -890,7 +943,7 @@ test_call_external_program (void)
 #ifdef BIN_ECHO
 	argv[0] = BIN_ECHO;
 	argv[1] = "Hello";
-	res = _adcli_call_external_program (argv[0], argv, NULL,
+	res = _adcli_call_external_program (argv[0], argv, NULL, NULL,
 	                                    &stdout_data, &stdout_data_len);
 	assert (res == ADCLI_SUCCESS);
 	assert (strncmp ("Hello\n", (char *) stdout_data, stdout_data_len) == 0);
