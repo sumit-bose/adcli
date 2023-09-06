@@ -749,6 +749,7 @@ done:
 			if (WIFEXITED (status) && WEXITSTATUS (status) != 0) {
 				_adcli_err ("net command failed with %d.",
 				            WEXITSTATUS (status));
+				ret = ADCLI_ERR_FAIL;
 			}
 		}
 	}
