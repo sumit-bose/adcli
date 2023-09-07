@@ -96,6 +96,12 @@ AC_SUBST(LDAP_LIBS)
 AC_SUBST(LDAP_CFLAGS)
 
 # -------------------------------------------------------------------
+# samba
+
+AC_CHECK_LIB([netapi], [NetComposeOfflineDomainJoin],
+	     [AC_DEFINE(SAMBA_NETAPI_HAS_COMPOSEODJ, 1, [Samba NetApi supports composeodj])])
+
+# -------------------------------------------------------------------
 # resolv
 
 AC_MSG_CHECKING([for which library has res_query, ns_get16 and ns_get32])
