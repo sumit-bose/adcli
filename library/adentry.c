@@ -515,7 +515,7 @@ adcli_entry_set_passwd (adcli_entry *entry, const char *user_pwd)
 	if (code != 0) {
 		_adcli_err ("Couldn't set password for %s account: %s: %s",
 		            entry->object_class,
-		            entry->sam_name, krb5_get_error_message (k5, code));
+		            entry->sam_name, adcli_krb5_get_error_message (k5, code));
 		/* TODO: Parse out these values */
 		res = ADCLI_ERR_DIRECTORY;
 

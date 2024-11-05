@@ -549,7 +549,7 @@ ensure_keytab_principals (adcli_result res,
 			if (code != 0) {
 				_adcli_err ("Couldn't parse kerberos user principal: %s: %s",
 				            enroll->user_principal,
-				            krb5_get_error_message (k5, code));
+				            adcli_krb5_get_error_message (k5, code));
 				return ADCLI_ERR_CONFIG;
 			}
 		}
@@ -1523,7 +1523,7 @@ set_password_with_user_creds (adcli_enroll *enroll)
 	if (code != 0) {
 		_adcli_err ("Couldn't set password for %s account: %s: %s",
 		            s_or_c (enroll),
-		            enroll->computer_sam, krb5_get_error_message (k5, code));
+		            enroll->computer_sam, adcli_krb5_get_error_message (k5, code));
 		/* TODO: Parse out these values */
 		res = ADCLI_ERR_DIRECTORY;
 
@@ -1584,7 +1584,7 @@ set_password_with_computer_creds (adcli_enroll *enroll)
 	if (code != 0) {
 		_adcli_err ("Couldn't get change password ticket for %s account: %s: %s",
 		            s_or_c (enroll),
-		            enroll->computer_sam, krb5_get_error_message (k5, code));
+		            enroll->computer_sam, adcli_krb5_get_error_message (k5, code));
 		return ADCLI_ERR_DIRECTORY;
 	}
 
@@ -1596,7 +1596,7 @@ set_password_with_computer_creds (adcli_enroll *enroll)
 	if (code != 0) {
 		_adcli_err ("Couldn't change password for %s account: %s: %s",
 		            s_or_c (enroll),
-		            enroll->computer_sam, krb5_get_error_message (k5, code));
+		            enroll->computer_sam, adcli_krb5_get_error_message (k5, code));
 		/* TODO: Parse out these values */
 		res = ADCLI_ERR_DIRECTORY;
 
@@ -2113,7 +2113,7 @@ load_host_keytab (adcli_enroll *enroll)
 		code = _adcli_krb5_keytab_enumerate (k5, keytab, load_keytab_entry, enroll);
 		if (code != 0) {
 			_adcli_err ("Couldn't enumerate keytab: %s: %s",
-		                    enroll->keytab_name, krb5_get_error_message (k5, code));
+		                    enroll->keytab_name, adcli_krb5_get_error_message (k5, code));
 			res = ADCLI_ERR_FAIL;
 		}
 		krb5_kt_close (k5, keytab);
@@ -2225,7 +2225,7 @@ remove_principal_from_keytab (adcli_enroll *enroll,
 
 	if (code != 0) {
 		_adcli_err ("Couldn't update keytab: %s: %s",
-		            enroll->keytab_name, krb5_get_error_message (k5, code));
+		            enroll->keytab_name, adcli_krb5_get_error_message (k5, code));
 		return ADCLI_ERR_FAIL;
 	}
 
@@ -2257,7 +2257,7 @@ add_principal_to_keytab (adcli_enroll *enroll,
 
 	if (code != 0) {
 		_adcli_err ("Couldn't update keytab: %s: %s",
-		            enroll->keytab_name, krb5_get_error_message (k5, code));
+		            enroll->keytab_name, adcli_krb5_get_error_message (k5, code));
 		return ADCLI_ERR_FAIL;
 	}
 
@@ -2296,7 +2296,7 @@ add_principal_to_keytab (adcli_enroll *enroll,
 			                                         enctypes, salts, which_salt);
 			if (code != 0) {
 				_adcli_warn ("Couldn't authenticate with keytab while discovering which salt to use: %s: %s",
-				             principal_name, krb5_get_error_message (k5, code));
+				             principal_name, adcli_krb5_get_error_message (k5, code));
 				*which_salt = DEFAULT_SALT;
 			} else {
 				assert (*which_salt >= 0);
@@ -2313,7 +2313,7 @@ add_principal_to_keytab (adcli_enroll *enroll,
 
 	if (code != 0) {
 		_adcli_err ("Couldn't add keytab entries: %s: %s",
-		            enroll->keytab_name, krb5_get_error_message (k5, code));
+		            enroll->keytab_name, adcli_krb5_get_error_message (k5, code));
 		return ADCLI_ERR_FAIL;
 	}
 

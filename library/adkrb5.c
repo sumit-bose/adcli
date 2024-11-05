@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
+#include <sys/param.h>
 
 krb5_error_code
 _adcli_krb5_build_principal (krb5_context k5,
@@ -174,7 +175,7 @@ _adcli_krb5_init_context (krb5_context *k5)
 
 	} else if (code != 0) {
 		_adcli_err ("Failed to create kerberos context: %s",
-		            krb5_get_error_message (NULL, code));
+		            adcli_krb5_get_error_message (NULL, code));
 		return ADCLI_ERR_UNEXPECTED;
 	}
 
@@ -192,7 +193,7 @@ _adcli_krb5_open_keytab (krb5_context k5,
 		code = krb5_kt_resolve (k5, keytab_name, keytab);
 		if (code != 0) {
 			_adcli_err ("Failed to open keytab: %s: %s",
-			            keytab_name, krb5_get_error_message (k5, code));
+			            keytab_name, adcli_krb5_get_error_message (k5, code));
 			return ADCLI_ERR_FAIL;
 		}
 
@@ -200,7 +201,7 @@ _adcli_krb5_open_keytab (krb5_context k5,
 		code = krb5_kt_default (k5, keytab);
 		if (code != 0) {
 			_adcli_err ("Failed to open default keytab: %s",
-			            krb5_get_error_message (k5, code));
+			            adcli_krb5_get_error_message (k5, code));
 			return ADCLI_ERR_FAIL;
 		}
 	}
@@ -569,4 +570,19 @@ _adcli_krb5_format_enctypes (krb5_enctype *enctypes)
 		return_val_if_reached (NULL);
 
 	return value;
+}
+
+const char *adcli_krb5_get_error_message (krb5_context ctx, krb5_error_code code)
+{
+	static char out[4096];
+	const char *tmp;
+	size_t len;
+
+	tmp = krb5_get_error_message (ctx, code);
+	len = strlen (tmp);
+	memcpy (out, tmp, MIN (sizeof (out), len));
+	out[sizeof(out) - 1] = '\0';
+	krb5_free_error_message (ctx, tmp);
+
+	return out;
 }

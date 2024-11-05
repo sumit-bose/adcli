@@ -367,20 +367,20 @@ handle_kinit_krb5_code (adcli_conn *conn,
 	           code == KRB5_PREAUTH_FAILED) {
 		if (type == ADCLI_LOGIN_COMPUTER_ACCOUNT) {
 			_adcli_err ("Couldn't authenticate as machine account: %s: %s",
-			            name, krb5_get_error_message (conn->k5, code));
+			            name, adcli_krb5_get_error_message (conn->k5, code));
 		} else {
 			_adcli_err ("Couldn't authenticate as: %s: %s",
-			            name, krb5_get_error_message (conn->k5, code));
+			            name, adcli_krb5_get_error_message (conn->k5, code));
 		}
 		return ADCLI_ERR_CREDENTIALS;
 
 	} else {
 		if (type == ADCLI_LOGIN_COMPUTER_ACCOUNT) {
 			_adcli_err ("Couldn't get kerberos ticket for machine account: %s: %s",
-			            name, krb5_get_error_message (conn->k5, code));
+			            name, adcli_krb5_get_error_message (conn->k5, code));
 		} else {
 			_adcli_err ("Couldn't get kerberos ticket for: %s: %s",
-			            name, krb5_get_error_message (conn->k5, code));
+			            name, adcli_krb5_get_error_message (conn->k5, code));
 		}
 		return ADCLI_ERR_DIRECTORY;
 	}
@@ -726,7 +726,7 @@ prep_kerberos_and_kinit (adcli_conn *conn)
 
 			if (code != 0) {
 				_adcli_err ("Couldn't open kerberos credential cache: %s: %s",
-				            conn->login_ccache_name, krb5_get_error_message (NULL, code));
+				            conn->login_ccache_name, adcli_krb5_get_error_message (NULL, code));
 				return ADCLI_ERR_CONFIG;
 			}
 		}

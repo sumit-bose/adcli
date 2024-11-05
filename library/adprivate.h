@@ -323,4 +323,6 @@ adcli_result     _adcli_call_external_program     (const char *binary,
                                                    uint8_t **stdout_data,
                                                    size_t *stdout_data_len);
 
+const char *adcli_krb5_get_error_message          (krb5_context ctx,
+                                                   krb5_error_code code);
 #endif /* ADPRIVATE_H_ */
