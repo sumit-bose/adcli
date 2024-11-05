@@ -413,8 +413,9 @@ Password for Administrator:
 			<para>Please note that Samba's <command>net</command>
 			requires some settings in <filename>smb.conf</filename>
 			to create the database entries correctly. Most
-			important here is currently the
-			<option>workgroup</option> option, see
+			important here are currently the
+			<option>workgroup</option>, <option>realm</option> and
+			<option>security</option> options, see
 			<citerefentry><refentrytitle>smb.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
 			for details.</para></listitem>
 		</varlistentry>
@@ -615,8 +616,9 @@ $ adcli update --login-ccache=/tmp/krbcc_123
 			<para>Please note that Samba's <command>net</command>
 			requires some settings in <filename>smb.conf</filename>
 			to create the database entries correctly. Most
-			important here is currently the
-			<option>workgroup</option> option, see
+			important here are currently the
+			<option>workgroup</option>, <option>realm</option> and
+			<option>security</option> options, see
 			<citerefentry><refentrytitle>smb.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
 			for details.</para>
 			<para>Note that if the machine account password is not
