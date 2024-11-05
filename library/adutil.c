@@ -169,7 +169,7 @@ _adcli_strv_dup (char **strv)
 		return NULL;
 
 	count = seq_count (strv);
-	return seq_dup (strv, &count, (seq_copy)strdup);
+	return seq_dup (strv, &count, (seq_copy)strdup, (seq_destroy)free);
 }
 
 char *

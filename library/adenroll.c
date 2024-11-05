@@ -2340,9 +2340,9 @@ update_keytab_for_principals (adcli_enroll *enroll,
 
 	for (i = 0; enroll->keytab_principals[i] != 0; i++) {
 		if (krb5_unparse_name (k5, enroll->keytab_principals[i], &name) != 0)
-			name = "";
+			name = NULL;
 		res = add_principal_to_keytab (enroll, k5, enroll->keytab_principals[i],
-		                               name, &which_salt, flags);
+		                               name != NULL ? name : "", &which_salt, flags);
 		krb5_free_unparsed_name (k5, name);
 
 		if (res != ADCLI_SUCCESS)

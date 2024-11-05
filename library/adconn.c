@@ -402,9 +402,9 @@ clear_krb5_conf_snippet (adcli_conn *conn)
 static adcli_result
 setup_krb5_conf_snippet (adcli_conn *conn)
 {
-	char *filename;
-	char *snippet;
-	char *controller;
+	char *filename = NULL;
+	char *snippet = NULL;
+	char *controller = NULL;
 	int errn;
 	int ret;
 	int fd;
@@ -429,7 +429,10 @@ setup_krb5_conf_snippet (adcli_conn *conn)
 		controller = strdup (conn->domain_controller);
 	}
 
-	return_unexpected_if_fail (controller != NULL);
+	if (controller == NULL) {
+		free (filename);
+		return_unexpected_if_reached ();
+	}
 
 	if (asprintf (&snippet, "[realms]\n"
 	                        "  %s = {\n"
@@ -442,8 +445,11 @@ setup_krb5_conf_snippet (adcli_conn *conn)
 	                        "  %s = %s\n",
 	              conn->domain_realm, controller, controller, controller,
 	              conn->canonical_host, conn->domain_realm,
-	              conn->domain_controller, conn->domain_realm) < 0)
+	              conn->domain_controller, conn->domain_realm) < 0) {
+		free (controller);
+		free (filename);
 		return_unexpected_if_reached ();
+	}
 
 	old_mask = umask (0177);
 	fd = mkstemp (filename);
@@ -451,6 +457,7 @@ setup_krb5_conf_snippet (adcli_conn *conn)
 	if (fd < 0) {
 		_adcli_warn ("Couldn't create krb5.conf snippet file in: %s: %s",
 		             conn->krb5_conf_dir, strerror (errno));
+		free (filename);
 
 	} else {
 		conn->krb5_conf_snippet = filename;
