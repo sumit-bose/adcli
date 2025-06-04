@@ -2025,6 +2025,39 @@ ensure_host_keytab (adcli_result res,
 }
 
 static krb5_boolean
+search_realm_in_keytab_entry (krb5_context k5,
+                              krb5_keytab_entry *entry,
+                              void *data)
+{
+	adcli_enroll *enroll = data;
+	krb5_error_code code;
+	krb5_principal principal;
+	char *value = NULL;
+	char *name = NULL;
+
+	/* Skip over any entry without a principal or realm */
+	principal = entry->principal;
+	if (!principal || !principal->realm.length)
+		return TRUE;
+
+	/* Use realm from the first HOST$ entry, if any */
+	if (adcli_conn_get_domain_realm (enroll->conn) == NULL) {
+		code = krb5_unparse_name_flags (k5, principal, KRB5_PRINCIPAL_UNPARSE_NO_REALM, &name);
+		return_val_if_fail (code == 0, FALSE);
+
+		if (_adcli_str_has_suffix (name, "$") && !strchr (name, '/')) {
+			value = _adcli_str_dupn (principal->realm.data, principal->realm.length);
+			adcli_conn_set_domain_realm (enroll->conn, value);
+			_adcli_info ("Found realm in keytab: %s", value);
+			free (value);
+		}
+	}
+
+	free (name);
+	return TRUE;
+}
+
+static krb5_boolean
 load_keytab_entry (krb5_context k5,
                    krb5_keytab_entry *entry,
                    void *data)
@@ -2107,6 +2140,21 @@ load_host_keytab (adcli_enroll *enroll)
 	res = _adcli_krb5_init_context (&k5);
 	if (res != ADCLI_SUCCESS)
 		return res;
+
+	/* Do a first iteration over the keytab entries to find a suitable
+	 * realm by looking for a HOST$ principal and use its realm. If none
+	 * was found the realm from the first entry is used in the second
+	 * iteration as a fallback. */
+	res = _adcli_krb5_open_keytab (k5, enroll->keytab_name, &keytab);
+	if (res == ADCLI_SUCCESS) {
+		code = _adcli_krb5_keytab_enumerate (k5, keytab, search_realm_in_keytab_entry, enroll);
+		if (code != 0) {
+			_adcli_err ("Couldn't enumerate keytab: %s: %s",
+		                    enroll->keytab_name, adcli_krb5_get_error_message (k5, code));
+			res = ADCLI_ERR_FAIL;
+		}
+		krb5_kt_close (k5, keytab);
+	}
 
 	res = _adcli_krb5_open_keytab (k5, enroll->keytab_name, &keytab);
 	if (res == ADCLI_SUCCESS) {
