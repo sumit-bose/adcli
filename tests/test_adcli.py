@@ -67,7 +67,7 @@ def test_adcli_show_computer(client: Client, provider: GenericADProvider):
     """
     :title: adcli show computer
     :setup:
-        1. Join the client account in the AD
+        1. join the client account in the ad
     :steps:
         1. Request information about a client computer account stored in AD-domain
     :expectedresults:
@@ -140,3 +140,38 @@ def test_adcli_delete_computer(client: Client, provider: GenericADProvider):
     assert re.findall(
         r"No computer account for .* exists", show_computer.stderr
     ), "adcli showing deleted computer info"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_join_ldaps(client: Client, provider: GenericADProvider):
+    """
+    :title: adcli join AD-domain over ldaps
+    :setup:
+        1. Block outbound traffic through 389 port on client
+    :steps:
+        1. Join the client to a AD-domain
+    :expectedresults:
+        1. A computer account and related keytabs of client should be created on AD-domain
+    """
+    client.firewall.outbound.accept_port(636)
+    client.firewall.outbound.reject_port(389)
+    join_command = client.adcli.join(
+        provider.host.domain,
+        login_user=provider.host.adminuser,
+        args=["--use-ldaps", "--domain-controller", provider.host.hostname, "--verbose"],
+        krb=False,
+        password=provider.host.adminpw,
+    )
+    short_hostname = client.host.hostname.split(".")[0].upper()
+    assert join_command.rc == 0, "adcli failed to join the client"
+    assert re.findall(
+        rf"Retrieved kvno .* for computer account in directory.*CN={short_hostname}",
+        join_command.stderr,
+        re.IGNORECASE,
+    ), "adcli failed to join the client"
+    assert re.findall(
+        rf"Added the entries to the keytab: host.{short_hostname}.* FILE:/etc/krb5.keytab",
+        join_command.stderr,
+        re.IGNORECASE,
+    ), "adcli failed to join the client"
