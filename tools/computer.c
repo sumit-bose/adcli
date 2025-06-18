@@ -718,6 +718,13 @@ adcli_tool_computer_testjoin (adcli_conn *conn,
 		return -res;
 	}
 
+	/* Use realm from keytab as domain name if not set explicitly because
+	 * this is most probably the name used during join and the DNS
+	 * hostname might be different. */
+	if (adcli_conn_get_domain_name (conn) == NULL) {
+		adcli_conn_set_domain_name (conn, adcli_conn_get_domain_realm (conn));
+	}
+
 	res = adcli_conn_connect (conn);
 	if (res != ADCLI_SUCCESS) {
 		adcli_enroll_unref (enroll);
