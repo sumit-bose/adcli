@@ -1162,16 +1162,35 @@ validate_computer_account (adcli_enroll *enroll,
 
 static adcli_result
 delete_computer_account (adcli_enroll *enroll,
-                         LDAP *ldap)
+                         LDAP *ldap,
+                         adcli_enroll_flags delete_flags)
 {
 	int ret;
+	LDAPControl *ctrls[2] = { NULL, NULL };
+	LDAPControl **del_ctrl = NULL;
 
-	ret = ldap_delete_ext_s (ldap, enroll->computer_dn, NULL, NULL);
+	if (delete_flags & ADCLI_ENROLL_RECURSIVE_DELETE) {
+		ret = ldap_control_create (LDAP_CONTROL_X_TREE_DELETE, 0, NULL, 0, &ctrls[0]);
+		if (ret != LDAP_SUCCESS) {
+			_adcli_err ("Recursive delete requested, creating control failed.\n");
+			return ADCLI_ERR_UNEXPECTED;
+		}
+		del_ctrl = ctrls;
+	}
+
+	ret = ldap_delete_ext_s (ldap, enroll->computer_dn, del_ctrl, NULL);
+	if (ctrls[0]) {
+		ldap_control_free (ctrls[0]);
+	}
 	if (ret == LDAP_INSUFFICIENT_ACCESS) {
 		return _adcli_ldap_handle_failure (ldap, ADCLI_ERR_CREDENTIALS,
 		                                   "Insufficient permissions to delete computer account: %s",
 		                                   enroll->computer_dn);
 
+	} else if (ret == LDAP_NOT_ALLOWED_ON_NONLEAF) {
+		return _adcli_ldap_handle_failure (ldap, ADCLI_ERR_DIRECTORY,
+		                                   "Cannot delete computer object %s with child objects,\nuse --recursive to delete child objects as well.",
+		                                   enroll->computer_dn);
 	} else if (ret != LDAP_SUCCESS) {
 		return _adcli_ldap_handle_failure (ldap, ADCLI_ERR_DIRECTORY,
 		                                   "Couldn't delete computer account: %s",
@@ -3092,7 +3111,7 @@ adcli_enroll_delete (adcli_enroll *enroll,
 		}
 	}
 
-	return delete_computer_account (enroll, ldap);
+	return delete_computer_account (enroll, ldap, delete_flags);
 }
 
 adcli_result

@@ -987,7 +987,19 @@ Password for Administrator:
 	computer adcli is running on is used, as returned by
 	<literal>gethostname()</literal>.</para>
 
-	<para>The various global options can be used.</para>
+	<para>In addition to the global options, you can specify the following
+	option to control how this operation is done.</para>
+
+	<variablelist>
+		<varlistentry>
+			<term><option>--recursive</option></term>
+			<listitem><para>If a computer object has child objects
+			this option must be used to delete the computer object
+			and all child objects. If the options is not used in
+			this case adcli will print and error message indicating
+			that this option is needed.</para></listitem>
+		</varlistentry>
+	</variablelist>
 
 </refsect1>
 

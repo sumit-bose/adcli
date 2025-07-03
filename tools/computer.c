@@ -119,6 +119,7 @@ typedef enum {
 	opt_use_ldaps,
 	opt_account_disable,
 	opt_ldap_passwd,
+	opt_recursive_delete,
 } Option;
 
 static adcli_tool_desc common_usages[] = {
@@ -171,6 +172,7 @@ static adcli_tool_desc common_usages[] = {
 	                      "to the Samba specific configuration database" },
 	{ opt_samba_data_tool, "Absolute path to the tool used for add-samba-data" },
 	{ opt_ldap_passwd, "Use LDAP add/mod operation to set/change password" },
+	{ opt_recursive_delete, "Delete computer object and child objects" },
 	{ opt_verbose, "show verbose progress and failure messages", },
 	{ 0 },
 };
@@ -363,6 +365,7 @@ parse_option (Option opt,
 	case opt_one_time_password:
 	case opt_add_samba_data:
 	case opt_ldap_passwd:
+	case opt_recursive_delete:
 		assert (0 && "not reached");
 		break;
 	}
@@ -955,12 +958,14 @@ adcli_tool_computer_delete (adcli_conn *conn,
 	adcli_enroll *enroll;
 	adcli_result res;
 	int opt;
+	adcli_enroll_flags flags = 0;
 
 	struct option options[] = {
 		{ "domain", required_argument, NULL, opt_domain },
 		{ "domain-realm", required_argument, NULL, opt_domain_realm },
 		{ "domain-controller", required_argument, NULL, opt_domain_controller },
 		{ "use-ldaps", no_argument, 0, opt_use_ldaps },
+		{ "recursive", no_argument, 0, opt_recursive_delete },
 		{ "login-user", required_argument, NULL, opt_login_user },
 		{ "login-ccache", optional_argument, NULL, opt_login_ccache },
 		{ "no-password", no_argument, 0, opt_no_password },
@@ -984,6 +989,9 @@ adcli_tool_computer_delete (adcli_conn *conn,
 
 	while ((opt = adcli_tool_getopt (argc, argv, options)) != -1) {
 		switch (opt) {
+		case opt_recursive_delete:
+			flags |= ADCLI_ENROLL_RECURSIVE_DELETE;
+			break;
 		case 'h':
 		case '?':
 		case ':':
@@ -1030,7 +1038,7 @@ adcli_tool_computer_delete (adcli_conn *conn,
 	if (argc == 1)
 		parse_fqdn_or_name (enroll, argv[0]);
 
-	res = adcli_enroll_delete (enroll, 0);
+	res = adcli_enroll_delete (enroll, flags);
 	if (res != ADCLI_SUCCESS) {
 		warnx ("deleting %s in %s domain failed: %s", argv[0],
 		       adcli_conn_get_domain_name (conn),
