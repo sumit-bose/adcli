@@ -1135,20 +1135,101 @@ filter_for_necessary_updates (adcli_enroll *enroll,
 }
 
 static adcli_result
+update_computer_attribute (adcli_enroll *enroll,
+                           LDAP *ldap,
+                           LDAPMod **mods)
+{
+	adcli_result res = ADCLI_SUCCESS;
+	char *string;
+	int ret;
+
+	/* See if there are any changes to be made? */
+	if (filter_for_necessary_updates (enroll, ldap, enroll->computer_attributes, mods) == 0)
+		return ADCLI_SUCCESS;
+
+	string = _adcli_ldap_mods_to_string (mods);
+	return_unexpected_if_fail (string != NULL);
+
+	_adcli_info ("Modifying %s account: %s", s_or_c (enroll), string);
+
+	ret = ldap_modify_ext_s (ldap, enroll->computer_dn, mods, NULL, NULL);
+
+	if (ret != LDAP_SUCCESS) {
+		_adcli_warn ("Couldn't set %s on %s account: %s: %s",
+		             string, s_or_c (enroll), enroll->computer_dn,
+		             ldap_err2string (ret));
+		res = ADCLI_ERR_DIRECTORY;
+	}
+
+	free (string);
+	return res;
+}
+
+static adcli_result
+ensure_des_not_enforced (adcli_result res, LDAP *ldap,
+                         adcli_enroll *enroll, LDAPMessage *entry)
+{
+	char *uac_str;
+	uint32_t uac = 0;
+	unsigned long attr_val;
+	char *end;
+	char *vals_userAccountControl[] = { NULL , NULL };
+	LDAPMod userAccountControl = { LDAP_MOD_REPLACE, "userAccountControl", { vals_userAccountControl, } };
+	LDAPMod *mods[] = { &userAccountControl, NULL };
+
+	if (res != ADCLI_SUCCESS) {
+		return res;
+	}
+
+	uac_str = _adcli_ldap_parse_value (ldap, entry, "userAccountControl");
+	if (uac_str != NULL) {
+
+		attr_val = strtoul (uac_str, &end, 10);
+		if (*end != '\0' || attr_val > UINT32_MAX) {
+			_adcli_warn ("Invalid userAccountControl '%s' for %s account in directory: %s, assuming 0",
+			            uac_str, s_or_c (enroll), enroll->computer_dn);
+		} else {
+			uac = attr_val;
+		}
+		free (uac_str);
+	}
+
+	if (uac & UAC_USE_DES_KEY_ONLY) {
+		_adcli_warn ("USE_DES_KEY_ONLY is set for '%s', it will be removed.",
+		             enroll->computer_dn);
+
+		uac &= ~(UAC_USE_DES_KEY_ONLY);
+		if (asprintf (&uac_str, "%d", uac) < 0) {
+			return_val_if_reached (ADCLI_ERR_FAIL);
+		}
+
+		vals_userAccountControl[0] = uac_str;
+		res = update_computer_attribute (enroll, ldap, mods);
+		if (res != ADCLI_SUCCESS) {
+			_adcli_err ("Failed to remove USE_DES_KEY_ONLY from '%s'.",
+			            enroll->computer_dn);
+		}
+	}
+
+	return res;
+}
+
+static adcli_result
 validate_computer_account (adcli_enroll *enroll,
+                           LDAP *ldap,
                            int allow_overwrite,
-                           int already_exists)
+                           LDAPMessage *entry)
 {
 	assert (enroll->computer_dn != NULL);
 
-	if (already_exists && !allow_overwrite) {
+	if ( (entry != NULL) && !allow_overwrite) {
 		_adcli_err ("The %s account %s already exists",
 		            s_or_c (enroll), enroll->computer_name);
 		return ADCLI_ERR_CONFIG;
 	}
 
 	/* Do we have an explicitly requested ou? */
-	if (enroll->domain_ou && enroll->domain_ou_explicit && already_exists) {
+	if (enroll->domain_ou && enroll->domain_ou_explicit && (entry != NULL)) {
 		if (!_adcli_ldap_dn_has_ancestor (enroll->computer_dn, enroll->domain_ou)) {
 			_adcli_err ("The %s account %s already exists, "
 			            "but is not in the desired organizational unit.",
@@ -1156,6 +1237,8 @@ validate_computer_account (adcli_enroll *enroll,
 			return ADCLI_ERR_CONFIG;
 		}
 	}
+
+	ensure_des_not_enforced (ADCLI_SUCCESS, ldap, enroll, entry);
 
 	return ADCLI_SUCCESS;
 }
@@ -1210,7 +1293,9 @@ locate_computer_account (adcli_enroll *enroll,
                          LDAPMessage **rresults,
                          LDAPMessage **rentry)
 {
-	char *attrs[] = { "objectClass", "CN", NULL };
+	/* The userAccountControl attribute is needed to check for
+	 * USE_DES_KEY_ONLY later */
+	char *attrs[] = { "objectClass", "CN", "userAccountControl", NULL };
 	LDAPMessage *results = NULL;
 	LDAPMessage *entry = NULL;
 	const char *base;
@@ -1298,7 +1383,9 @@ load_computer_account (adcli_enroll *enroll,
                        LDAPMessage **rresults,
                        LDAPMessage **rentry)
 {
-	char *attrs[] = { "objectClass", NULL };
+	/* The userAccountControl attribute is needed to check for
+	 * USE_DES_KEY_ONLY later */
+	char *attrs[] = { "objectClass", "userAccountControl", NULL };
 	LDAPMessage *results = NULL;
 	LDAPMessage *entry = NULL;
 	int ret;
@@ -1452,7 +1539,7 @@ locate_or_create_computer_account (adcli_enroll *enroll,
 			return res;
 	}
 
-	res = validate_computer_account (enroll, allow_overwrite, entry != NULL);
+	res = validate_computer_account (enroll, ldap, allow_overwrite, entry);
 	if (res == ADCLI_SUCCESS && entry == NULL)
 		res = create_computer_account (enroll, ldap, ldap_passwd);
 
@@ -1770,37 +1857,6 @@ update_and_calculate_enctypes (adcli_enroll *enroll)
 	}
 
 	return ADCLI_SUCCESS;
-}
-
-static adcli_result
-update_computer_attribute (adcli_enroll *enroll,
-                           LDAP *ldap,
-                           LDAPMod **mods)
-{
-	adcli_result res = ADCLI_SUCCESS;
-	char *string;
-	int ret;
-
-	/* See if there are any changes to be made? */
-	if (filter_for_necessary_updates (enroll, ldap, enroll->computer_attributes, mods) == 0)
-		return ADCLI_SUCCESS;
-
-	string = _adcli_ldap_mods_to_string (mods);
-	return_unexpected_if_fail (string != NULL);
-
-	_adcli_info ("Modifying %s account: %s", s_or_c (enroll), string);
-
-	ret = ldap_modify_ext_s (ldap, enroll->computer_dn, mods, NULL, NULL);
-
-	if (ret != LDAP_SUCCESS) {
-		_adcli_warn ("Couldn't set %s on %s account: %s: %s",
-		             string, s_or_c (enroll), enroll->computer_dn,
-		             ldap_err2string (ret));
-		res = ADCLI_ERR_DIRECTORY;
-	}
-
-	free (string);
-	return res;
 }
 
 static char *get_user_account_control (adcli_enroll *enroll)

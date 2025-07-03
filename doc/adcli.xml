@@ -445,6 +445,12 @@ Password for Administrator:
 	well. Either the current value or the default list of AD's supported
 	encryption types filtered by the permitted encryption types of the
 	client's Kerberos configuration are written.</para>
+
+	<para>If the computer object already exists in AD and in the
+	<option>userAccountControl</option> attribute the flag
+	<option>USE_DES_KEY_ONLY</option> is set, the flag will be removed
+	during the join because in current environments using DES for encryption
+	is deprecated since quite some time or already disabled.</para>
 </refsect1>
 
 <refsect1 id='updating'>
