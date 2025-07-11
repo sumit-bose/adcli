@@ -1181,6 +1181,10 @@ ensure_des_not_enforced (adcli_result res, LDAP *ldap,
 		return res;
 	}
 
+	if (entry == NULL) {
+		return ADCLI_SUCCESS;
+	}
+
 	uac_str = _adcli_ldap_parse_value (ldap, entry, "userAccountControl");
 	if (uac_str != NULL) {
 
