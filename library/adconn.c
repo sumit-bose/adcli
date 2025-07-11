@@ -34,6 +34,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/stat.h>
 
 #include <assert.h>
@@ -43,6 +44,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 struct _adcli_conn_ctx {
 	int refs;
@@ -794,6 +796,60 @@ prep_kerberos_and_kinit (adcli_conn *conn)
 
 }
 
+static int connect_with_timeout (int sockfd, const struct sockaddr *addr,
+                                 socklen_t addrlen)
+{
+	int ret;
+	int flags;
+	fd_set set;
+	struct timeval timeout = { 10, 0 };
+	int err;
+	socklen_t err_len = sizeof (int);
+
+	FD_ZERO (&set);
+	FD_SET (sockfd, &set);
+
+	errno = 0;
+	flags = fcntl (sockfd, F_GETFL, 0);
+	if (flags == -1) {
+		return -1;
+	}
+
+	ret = fcntl (sockfd, F_SETFL, flags | O_NONBLOCK);
+	if (ret == -1) {
+		return -1;
+	}
+
+	ret = connect (sockfd, addr, addrlen);
+	if (ret == -1) {
+		if (errno != EINPROGRESS) {
+			return -1;
+		}
+	}
+
+	errno = 0;
+	ret = select (sockfd + 1, NULL, &set, NULL, &timeout);
+	if (ret <= 0) {
+		if (ret == 0) {
+			errno = ETIMEDOUT;
+		}
+		return -1;
+	}
+
+	ret = getsockopt (sockfd, SOL_SOCKET, SO_ERROR, &err, &err_len);
+	if (ret == -1) {
+		return -1;
+	}
+
+	ret = fcntl (sockfd, F_SETFL, flags);
+	if (ret == -1) {
+		return -1;
+	}
+
+	errno = err;
+	return err == 0 ? 0 : -1;
+}
+
 /* Not included in ldap.h but documented */
 int ldap_init_fd (ber_socket_t fd, int proto, LDAP_CONST char *url, struct ldap **ldp);
 
@@ -843,7 +899,7 @@ connect_to_address (const char *host,
 		sock = socket (ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (sock < 0) {
 			error = errno;
-		} else if (connect (sock, ai->ai_addr, ai->ai_addrlen) < 0) {
+		} else if (connect_with_timeout (sock, ai->ai_addr, ai->ai_addrlen) < 0) {
 			error = errno;
 			close (sock);
 		} else {
@@ -884,9 +940,11 @@ connect_to_address (const char *host,
 	if (!ldap && error)
 		_adcli_err ("Couldn't connect to host: %s: %s", host, strerror (error));
 
-	*addr = malloc(sizeof(struct sockaddr));
-	if (*addr != NULL) {
-		memcpy(*addr, ai->ai_addr, sizeof(struct sockaddr));
+	if (ai != NULL) {
+		*addr = malloc (sizeof(struct sockaddr));
+		if (*addr != NULL) {
+			memcpy (*addr, ai->ai_addr, sizeof(struct sockaddr));
+		}
 	}
 
 	freeaddrinfo (res);
