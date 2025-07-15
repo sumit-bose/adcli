@@ -45,6 +45,9 @@
 #include <fcntl.h>
 #include <iconv.h>
 #include <lber.h>
+#ifdef BUILD_SELINUX_POLICY
+#include <selinux/restorecon.h>
+#endif
 
 #ifndef SAMBA_DATA_TOOL
 #define SAMBA_DATA_TOOL "/usr/bin/net"
@@ -2102,6 +2105,33 @@ ensure_host_keytab (adcli_result res,
 	_adcli_info ("Using keytab: %s", enroll->keytab_name);
 	return ADCLI_SUCCESS;
 }
+
+adcli_result
+ensure_host_keytab_selinux_context (adcli_result res,
+                                    adcli_enroll *enroll)
+{
+#ifdef BUILD_SELINUX_POLICY
+	int ret;
+
+	if (res != ADCLI_SUCCESS)
+		return res;
+
+	if (enroll->keytab_name == NULL) {
+		_adcli_info ("No keytab name available, skipping SELinux restorecon.");
+		return ADCLI_SUCCESS;
+	}
+
+	ret = selinux_restorecon (adcli_enroll_get_keytab_name (enroll), 0);
+	if (ret != 0) {
+		_adcli_err ("Failed to set SELinux context for %s with error %d: %s",
+		            enroll->keytab_name, ret, strerror (ret));
+		return ADCLI_ERR_FAIL;
+	}
+#endif
+
+	return ADCLI_SUCCESS;
+}
+
 
 static krb5_boolean
 search_realm_in_keytab_entry (krb5_context k5,

@@ -132,6 +132,29 @@ if test "$sasl_invalid" = "yes"; then
 fi
 
 # --------------------------------------------------------------------
+# libselinux
+AC_SUBST(LIBSELINUX_LIBS)
+AC_SUBST(LIBSELINUX_CFLAGS)
+
+PKG_CHECK_MODULES([LIBSELINUX], [libselinux], [found_libselinux=yes], [found_libselinux=no])
+
+# --------------------------------------------------------------------
+# selinux-policy
+SELINUX_MAKEFILE=/usr/share/selinux/devel/Makefile
+AC_SUBST([SELINUX_MAKEFILE])
+
+AC_CHECK_FILE([$SELINUX_MAKEFILE],
+              [build_selinux=yes],
+              [build_selinux=no])
+
+AM_CONDITIONAL(BUILD_SELINUX_POLICY, test x$build_selinux = xyes && test x$found_libselinux = xyes)
+
+if test x$build_selinux = xyes && test x$found_libselinux = xyes; then
+    AC_DEFINE(BUILD_SELINUX_POLICY, 1, [whether to build with SELinux support])
+fi
+
+
+# --------------------------------------------------------------------
 # Vendor error message
 
 AC_ARG_WITH([vendor-error-message],
@@ -338,6 +361,7 @@ AC_CONFIG_FILES([Makefile
 	doc/samba_data_tool_path.xml
 	library/Makefile
 	tools/Makefile
+	selinux/Makefile
 ])
 AC_OUTPUT
 

@@ -520,6 +520,8 @@ adcli_tool_computer_join (adcli_conn *conn,
 	else if (show_password)
 		dump_password (conn, enroll);
 
+	ensure_host_keytab_selinux_context (ADCLI_SUCCESS, enroll);
+
 	adcli_enroll_unref (enroll);
 
 	return 0;
@@ -652,6 +654,8 @@ adcli_tool_computer_update (adcli_conn *conn,
 		dump_details (conn, enroll, show_password);
 	else if (show_password)
 		dump_password (conn, enroll);
+
+	ensure_host_keytab_selinux_context (ADCLI_SUCCESS, enroll);
 
 	adcli_enroll_unref (enroll);
 
@@ -1270,6 +1274,8 @@ adcli_tool_computer_managed_service_account (adcli_conn *conn,
 		dump_details (conn, enroll, show_password);
 	else if (show_password)
 		dump_password (conn, enroll);
+
+	ensure_host_keytab_selinux_context (ADCLI_SUCCESS, enroll);
 
 	adcli_enroll_unref (enroll);
 
