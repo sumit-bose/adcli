@@ -584,27 +584,29 @@ _adcli_call_external_program (const char *binary, char * const *argv,
 		}
 
 		child_env_size = environ_size + envp_size + 1;
-		child_env = calloc(child_env_size, sizeof(char *));
+		child_env = calloc (child_env_size, sizeof(char *));
 		if (child_env == NULL) {
-			_adcli_err("Failed to allocate memory.");
+			_adcli_err ("Failed to allocate memory.");
 			return ADCLI_ERR_FAIL;
 		}
 
-		memset(child_env, 0, child_env_size);
+		memset (child_env, 0, child_env_size);
 
 		for (i = 0, j = 0; environ[i] != NULL; i++, j++) {
-			child_env[j] = strdup(environ[i]);
+			child_env[j] = strdup (environ[i]);
 			if (child_env[j] == NULL) {
-				_adcli_err("Failed to allocate memory.");
-				return ADCLI_ERR_FAIL;
+				_adcli_err ("Failed to allocate memory.");
+				ret = ADCLI_ERR_FAIL;
+				goto done;
 			}
 		}
 
 		for (i = 0; envp[i] != NULL; i++, j++) {
-			child_env[j] = strdup(envp[i]);
+			child_env[j] = strdup (envp[i]);
 			if (child_env[j] == NULL) {
-				_adcli_err("Failed to allocate memory.");
-				return ADCLI_ERR_FAIL;
+				_adcli_err ("Failed to allocate memory.");
+				ret = ADCLI_ERR_FAIL;
+				goto done;
 			}
 		}
 	}
@@ -719,16 +721,16 @@ _adcli_call_external_program (const char *binary, char * const *argv,
 		goto done;
 	}
 
-	if (child_env != NULL) {
-                for (int i = 0; i < child_env_size; i++) {
-                        free(child_env[i]);
-                }
-                free(child_env);
-	}
-
 	ret = ADCLI_SUCCESS;
 
 done:
+	if (child_env != NULL) {
+		for (int i = 0; i < child_env_size; i++) {
+			free (child_env[i]);
+		}
+		free (child_env);
+	}
+
 	if (pipefd_from_child[0] != -1) {
 		close (pipefd_from_child[0]);
 	}
