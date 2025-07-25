@@ -462,6 +462,11 @@ Password for Administrator:
 	because AD will need some time to replicate the new key to all DCs hence the
 	previous key might still be used.
 	</para>
+	<para>Service principal names will be synced between the keytab and the Active
+	Directory computer object in the sense that principals missing on either side
+	will be added automatically. To remove service principals the
+	<option>--remove-service-principal</option> command line option must be used.
+	</para>
 
 <programlisting>
 $ adcli update

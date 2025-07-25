@@ -2799,13 +2799,16 @@ adcli_enroll_prepare (adcli_enroll *enroll,
 }
 
 static adcli_result
-add_server_side_service_principals (adcli_enroll *enroll)
+add_server_side_service_principals (adcli_enroll *enroll,
+                                    adcli_enroll_flags *flags)
 {
 	char **spn_list;
 	LDAP *ldap;
 	size_t c;
 	int length = 0;
 	adcli_result res;
+	char *tmp_str;
+	char **tmp_list;
 
 	ldap = adcli_conn_get_ldap_connection (enroll->conn);
 	assert (ldap != NULL);
@@ -2823,11 +2826,23 @@ add_server_side_service_principals (adcli_enroll *enroll)
 	for (c = 0; spn_list[c] != NULL; c++) {
 		_adcli_info ("Checking %s", spn_list[c]);
 		if (!_adcli_strv_has_ex (enroll->service_principals_to_remove, spn_list[c], strcasecmp)) {
-			enroll->service_principals = _adcli_strv_add_unique (enroll->service_principals,
-			                                                     strdup (spn_list[c]),
-			                                                     &length, false);
-			assert (enroll->service_principals != NULL);
-			_adcli_info ("   Added %s", spn_list[c]);
+			if (_adcli_strv_has_ex (enroll->service_principals, spn_list[c], strcasecmp) == 0) {
+				tmp_str = strdup (spn_list[c]);
+				if (tmp_str == NULL) {
+					_adcli_err ("Failed to copy service principal name.");
+					return ADCLI_ERR_UNEXPECTED;
+				}
+				tmp_list = _adcli_strv_add (enroll->service_principals,
+				                            tmp_str, &length);
+				if (tmp_list == NULL) {
+					free (tmp_str);
+					_adcli_err ("Failed to extend service principal list.");
+					return ADCLI_ERR_UNEXPECTED;
+				}
+				enroll->service_principals = tmp_list;
+				_adcli_info ("   Added %s", spn_list[c]);
+				*flags &= ~ADCLI_ENROLL_NO_KEYTAB;
+			}
 		}
 	}
 	_adcli_strv_free (spn_list);
@@ -2874,16 +2889,21 @@ enroll_join_or_update_tasks (adcli_enroll *enroll,
 			return res;
 	}
 
-	/* kvno is not needed if no keytab */
-	if (flags & ADCLI_ENROLL_NO_KEYTAB)
-		enroll->kvno = -1;
-
 	/* Get information about the computer account if needed */
 	if (enroll->computer_attributes == NULL) {
 		res = retrieve_computer_account (enroll);
 		if (res != ADCLI_SUCCESS)
 			return res;
 	}
+
+	res = add_server_side_service_principals (enroll, &flags);
+	if (res != ADCLI_SUCCESS) {
+		return res;
+	}
+
+	/* kvno is not needed if no keytab */
+	if (flags & ADCLI_ENROLL_NO_KEYTAB)
+		enroll->kvno = -1;
 
 	/* Handle kvno changes for read-only domain controllers (RODC) */
 	if (!adcli_conn_is_writeable (enroll->conn) && old_kvno != -1 &&
@@ -2897,11 +2917,6 @@ enroll_join_or_update_tasks (adcli_enroll *enroll,
 	/* We ignore failures of setting these fields */
 	update_and_calculate_enctypes (enroll);
 	update_computer_account (enroll);
-
-	res = add_server_side_service_principals (enroll);
-	if (res != ADCLI_SUCCESS) {
-		return res;
-	}
 
 	/* service_names is only set from input on the command line, so no
 	 * additional check for explicit is needed here */
