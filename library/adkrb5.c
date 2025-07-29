@@ -211,6 +211,39 @@ _adcli_krb5_open_keytab (krb5_context k5,
 
 typedef struct {
 	krb5_kvno kvno;
+	krb5_principal principal;
+	krb5_enctype enctype;
+	int matched;
+} match_principal_kvno_enctype;
+
+static krb5_boolean
+match_principal_and_kvno_and_enctype (krb5_context k5,
+                                      krb5_keytab_entry *entry,
+                                      void *data)
+{
+	krb5_error_code code;
+	krb5_boolean similar = FALSE;
+	match_principal_kvno_enctype *closure = data;
+
+	assert (closure->principal);
+	assert (closure->enctype);
+
+	code = krb5_c_enctype_compare (k5, closure->enctype, entry->key.enctype,
+	                               &similar);
+
+	if (code == 0 && entry->vno == closure->kvno && similar) {
+		/* Is this the principal we're looking for? */
+		if (krb5_principal_compare (k5, entry->principal, closure->principal)) {
+			closure->matched = 1;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+typedef struct {
+	krb5_kvno kvno;
 	krb5_enctype enctype;
 	int matched;
 } match_enctype_kvno;
@@ -292,6 +325,7 @@ _adcli_krb5_keytab_copy_entries (krb5_context k5,
 	krb5_error_code code;
 	int i;
 	match_enctype_kvno closure;
+	match_principal_kvno_enctype remove_closure;
 
 	for (i = 0; enctypes[i] != 0; i++) {
 
@@ -305,6 +339,28 @@ _adcli_krb5_keytab_copy_entries (krb5_context k5,
 		                                 match_enctype_and_kvno, &closure);
 		if (code != 0 || closure.matched == 0) {
 			return code != 0 ? code : ENOKEY;
+		}
+
+		/* remove existing entry, if any, because krb5_kt_add_entry()
+		 * only adds entries and does not overwrite existing ones.
+		 */
+		remove_closure.kvno = kvno;
+		remove_closure.enctype = enctypes[i];
+		remove_closure.principal = principal;
+		remove_closure.matched = 0;
+
+		code = _adcli_krb5_keytab_clear (k5, keytab,
+		                                 match_principal_and_kvno_and_enctype,
+		                                 &remove_closure);
+		if (code != 0) {
+			_adcli_err ("Couldn't update keytab: %s",
+			            adcli_krb5_get_error_message (k5, code));
+			return code;
+		}
+
+		if (remove_closure.matched) {
+			_adcli_info ("Cleared old entry kvno %d enctype %d from keytab",
+			             kvno, enctypes[i]);
 		}
 
 		entry.principal = principal;

@@ -484,7 +484,7 @@ ensure_service_principals (adcli_result res,
 
 	assert (enroll->keytab_principals == NULL);
 
-	if (!enroll->service_principals) {
+	if (!enroll->service_principals && !enroll->is_service) {
 		assert (enroll->service_names != NULL);
 		res = add_service_names_to_service_principals (enroll);
 	}
@@ -528,8 +528,8 @@ ensure_keytab_principals (adcli_result res,
 
 	if (!enroll->is_service) {
 		return_unexpected_if_fail (enroll->service_principals);
-		count = _adcli_strv_len (enroll->service_principals);
 	}
+	count = _adcli_strv_len (enroll->service_principals);
 
 	k5 = adcli_conn_get_krb5_context (enroll->conn);
 	return_unexpected_if_fail (k5 != NULL);
@@ -1932,11 +1932,6 @@ update_computer_account (adcli_enroll *enroll)
 	LDAP *ldap;
 	char *value = NULL;
 
-	/* No updates for service accounts */
-	if (enroll->is_service) {
-		return;
-	}
-
 	ldap = adcli_conn_get_ldap_connection (enroll->conn);
 	return_if_fail (ldap != NULL);
 
@@ -2042,11 +2037,6 @@ update_service_principals (adcli_enroll *enroll)
 	LDAPMod *mods[] = { &servicePrincipalName, NULL, };
 	LDAP *ldap;
 	int ret;
-
-	/* No updates for service accounts */
-	if (enroll->is_service) {
-		return ADCLI_SUCCESS;
-	}
 
 	ldap = adcli_conn_get_ldap_connection (enroll->conn);
 	return_unexpected_if_fail (ldap != NULL);
@@ -2399,7 +2389,7 @@ add_principal_to_keytab (adcli_enroll *enroll,
 {
 	match_principal_kvno closure;
 	krb5_data password;
-	krb5_error_code code;
+	krb5_error_code code = 0;
 	krb5_data *salts;
 	krb5_enctype *enctypes;
 
@@ -2409,8 +2399,10 @@ add_principal_to_keytab (adcli_enroll *enroll,
 	closure.principal = principal;
 	closure.matched = 0;
 
-	code = _adcli_krb5_keytab_clear (k5, enroll->keytab,
-	                                 match_principal_and_kvno, &closure);
+	if (! (flags & ADCLI_ENROLL_PASSWORD_VALID)) {
+		code = _adcli_krb5_keytab_clear (k5, enroll->keytab,
+		                                 match_principal_and_kvno, &closure);
+	}
 
 	if (code != 0) {
 		_adcli_err ("Couldn't update keytab: %s: %s",
@@ -2764,6 +2756,22 @@ enroll_clear_state (adcli_enroll *enroll)
 }
 
 adcli_result
+adcli_enroll_prepare_names (adcli_enroll *enroll)
+{
+	adcli_result res = ADCLI_SUCCESS;
+
+	return_unexpected_if_fail (enroll != NULL);
+
+	adcli_clear_last_error ();
+
+	res = ensure_host_fqdn (res, enroll);
+	res = ensure_computer_name (res, enroll);
+	res = ensure_computer_sam (res, enroll);
+
+	return res;
+}
+
+adcli_result
 adcli_enroll_prepare (adcli_enroll *enroll,
                       adcli_enroll_flags flags)
 {
@@ -2775,17 +2783,14 @@ adcli_enroll_prepare (adcli_enroll *enroll,
 
 	if (enroll->is_service) {
 		/* Ensure basic params for service accounts */
-		res = ensure_host_fqdn (res, enroll);
-		res = ensure_computer_name (res, enroll);
-		res = ensure_computer_sam (res, enroll);
+		res = adcli_enroll_prepare_names (enroll);
 		res = ensure_computer_password (res, enroll);
 		res = ensure_host_keytab (res, enroll);
+		res = ensure_service_principals (res, enroll);
 		res = ensure_keytab_principals (res, enroll);
 	} else {
 		/* Basic discovery and figuring out enroll params */
-		res = ensure_host_fqdn (res, enroll);
-		res = ensure_computer_name (res, enroll);
-		res = ensure_computer_sam (res, enroll);
+		res = adcli_enroll_prepare_names (enroll);
 		res = ensure_user_principal (res, enroll);
 		res = ensure_computer_password (res, enroll);
 		if (!(flags & ADCLI_ENROLL_NO_KEYTAB))
@@ -3083,7 +3088,7 @@ adcli_enroll_read_computer_account (adcli_enroll *enroll,
 	if (res != ADCLI_SUCCESS)
 		return res;
 
-	res = adcli_enroll_prepare (enroll, flags);
+	res = adcli_enroll_prepare_names (enroll);
 	if (res != ADCLI_SUCCESS)
 		return res;
 
@@ -3103,7 +3108,12 @@ adcli_enroll_read_computer_account (adcli_enroll *enroll,
 	}
 
 	/* Get information about the computer account */
-	return retrieve_computer_account (enroll);
+	res = retrieve_computer_account (enroll);
+	if (res != ADCLI_SUCCESS) {
+		return res;
+	}
+
+	return adcli_enroll_prepare (enroll, flags);
 }
 
 adcli_result
@@ -3138,11 +3148,6 @@ adcli_enroll_update (adcli_enroll *enroll,
 		flags |= ADCLI_ENROLL_PASSWORD_VALID;
 	}
 	free (value);
-
-	/* We only support password changes for service accounts */
-	if (enroll->is_service && (flags & ADCLI_ENROLL_PASSWORD_VALID)) {
-		return ADCLI_SUCCESS;
-	}
 
 	return enroll_join_or_update_tasks (enroll, flags);
 }
