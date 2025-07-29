@@ -170,3 +170,78 @@ def test_adcli_testjoin(client: Client, provider: GenericADProvider):
     assert re.findall(
         rf"Sucessfully validated join to domain {provider.host.domain}", testjoin.stdout, re.IGNORECASE
     ), "Failed to validate join to domain"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_join_segfault_389_blocked(client: Client, provider: GenericADProvider):
+    """
+    :title: adcli join segfault if 389-port blocked
+    :setup:
+        1. Block 389-UDP port
+    :steps:
+        1. Join the client account in the AD
+    :expectedresults:
+        1. No segfault was observed
+    """
+    client.adcli.join(
+        provider.host.domain,
+        login_user=provider.host.adminuser,
+        args=["--domain-controller", provider.host.hostname, "--verbose"],
+        krb=False,
+        password=provider.host.adminpw,
+    )
+    client.firewall.outbound.drop_port(("389", "udp"))
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_join_with_modified_hostname(client: Client, provider: GenericADProvider):
+    """
+    :title: adcli join AD-domain with a modified hostname
+    :description: Verifies a client can join an AD domain after its hostname has been changed locally.
+    :setup:
+        1. Modify the client's hostname.
+    :steps:
+        1. Join the client to the AD-domain using the new hostname.
+        2. Verify the computer account was created in AD with the new hostname.
+    :expectedresults:
+        1. The domain join is successful.
+        2. The computer account in AD matches the modified client hostname.
+    """
+    # Define a new, unique hostname for the client
+    new_hostname = "newclient.test"
+    hostname_utils = client.hostnameutils
+    original_hostname = None
+
+    try:
+        # Manually save the original hostname
+        original_hostname = hostname_utils.name
+
+        # Change the hostname
+        hostname_utils.set_name(new_hostname)
+
+        assert hostname_utils.name == new_hostname
+        # Now, attempt to join the domain with the new hostname
+        join_command = client.adcli.join(
+            domain=provider.host.domain,
+            login_user=provider.host.adminuser,
+            args=["--domain-controller", provider.host.hostname, "--verbose"],
+            krb=False,
+            password=provider.host.adminpw,
+        )
+
+        ## The computer account name in AD will be the short hostname, uppercased
+        new_short_hostname = new_hostname.split(".")[0].upper()
+
+        assert join_command.rc == 0, f"adcli failed to join with modified hostname: {join_command.stderr}"
+        assert re.search(
+            rf"Retrieved kvno .* for computer account in directory.*CN={new_short_hostname}",
+            join_command.stderr,
+            re.IGNORECASE,
+        ), "Computer account was not created correctly with the modified hostname."
+
+    finally:
+        # Ensure the original hostname is always restored
+        if original_hostname:
+            hostname_utils.set_name(original_hostname)
