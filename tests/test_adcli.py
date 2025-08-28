@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import pytest
-import time
 import re
 
-
-from sssd_test_framework.utils.adcli import AdcliUtils
-from .topology import KnownTopology, KnownTopologyGroup
+import pytest
 from sssd_test_framework.roles.ad import AD
-from sssd_test_framework.roles.samba import Samba
 from sssd_test_framework.roles.client import Client
 from sssd_test_framework.roles.generic import GenericADProvider
+from sssd_test_framework.roles.samba import Samba
+from sssd_test_framework.utils.adcli import AdcliUtils
+
+from .topology import KnownTopology, KnownTopologyGroup
 
 
 @pytest.mark.importance("critical")
@@ -25,7 +24,7 @@ def test_adcli_info(client: Client, provider: GenericADProvider):
     :expectedresults:
         1. AD-domain information is properly fetched
     """
-    info = client.adcli.info(provider.host.domain, args=["--verbose"])
+    info = client.adcli.info(domain=provider.host.domain, args=["--verbose"])
     assert info.rc == 0, "adcli info command failed!"
     assert provider.host.domain in info.stderr, "adcli failed to fetch domain info!"
 
@@ -41,9 +40,9 @@ def test_adcli_join(client: Client, provider: GenericADProvider):
         1. A computer account and related keytabs of client should be created on AD-domain
     """
     join_command = client.adcli.join(
-        provider.host.domain,
+        domain=provider.host.domain,
         login_user=provider.host.adminuser,
-        args=["--domain-controller", provider.host.hostname, "--verbose"],
+        args=[f"--domain-controller={provider.host.hostname}", "--verbose"],
         krb=False,
         password=provider.host.adminpw,
     )
@@ -74,16 +73,16 @@ def test_adcli_show_computer(client: Client, provider: GenericADProvider):
         1. Correct information about the requested client account is fetched from the AD-domain
     """
     client.adcli.join(
-        provider.host.domain,
+        domain=provider.host.domain,
         login_user=provider.host.adminuser,
-        args=["--domain-controller", provider.host.hostname, "--verbose"],
+        args=[f"--domain-controller={provider.host.hostname}", "--verbose"],
         krb=False,
         password=provider.host.adminpw,
     )
 
     show_computer = client.adcli.show_computer(
-        provider.host.domain,
-        args=["--verbose"],
+        domain=provider.host.domain,
+        args=["--login-user", "Administrator", "--verbose"],
         login_user="Administrator",
         krb=False,
         password=provider.host.adminpw,
@@ -91,7 +90,9 @@ def test_adcli_show_computer(client: Client, provider: GenericADProvider):
 
     short_hostname = client.host.hostname.split(".")[0].upper()
     assert re.findall(
-        rf"Retrieved kvno .* for computer account in directory.*CN={short_hostname}", show_computer.stderr
+        rf"Retrieved kvno .* for computer account in directory.*CN={short_hostname}",
+        show_computer.stderr,
+        re.IGNORECASE,
     ), "adcli failed to show computer info"
     assert show_computer.rc == 0, "adcli failed showing computer info"
 
@@ -109,7 +110,7 @@ def test_adcli_delete_computer(client: Client, provider: GenericADProvider):
         1. Requested client computer account is correctly deleted from AD-Domain
     """
     client.adcli.join(
-        provider.host.domain,
+        domain=f"{provider.host.domain}",
         login_user=provider.host.adminuser,
         args=["--domain-controller", provider.host.hostname, "--verbose"],
         krb=False,
@@ -117,16 +118,16 @@ def test_adcli_delete_computer(client: Client, provider: GenericADProvider):
     )
 
     delete_computer = client.adcli.delete_computer(
-        provider.host.domain,
-        args=["--domain=" f"{provider.host.domain}", "--login-user", "Administrator", "--verbose"],
+        domain=f"{provider.host.domain}",
+        args=["--login-user", "Administrator", "--verbose"],
         krb=False,
         login_user="Administrator",
         password=provider.host.adminpw,
     )
 
     show_computer = client.adcli.show_computer(
-        provider.host.domain,
-        args=["--verbose"],
+        domain=f"{provider.host.domain}",
+        args=["--login-user", "Administrator", "--verbose"],
         login_user="Administrator",
         krb=False,
         password=provider.host.adminpw,
@@ -134,9 +135,38 @@ def test_adcli_delete_computer(client: Client, provider: GenericADProvider):
 
     short_hostname = client.host.hostname.split(".")[0].upper()
     assert re.findall(
-        rf"Deleted computer account at: CN={short_hostname}", delete_computer.stderr
+        rf"Deleted computer account at: CN={short_hostname}", delete_computer.stderr, re.IGNORECASE
     ), "adcli showing computer info"
     assert show_computer.rc != 0, "adcli showing computer info"
     assert re.findall(
-        r"No computer account for .* exists", show_computer.stderr
+        r"No computer account for .* exists", show_computer.stderr, re.IGNORECASE
     ), "adcli showing deleted computer info"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_testjoin(client: Client, provider: GenericADProvider):
+    """
+    :title: adcli testjoin AD-domain
+    :setup:
+        1. Join the client to a AD-domain
+    :steps:
+        1. Run testjoin to verify check if the client is joined to the AD-domain
+    :expectedresults:
+        1. The join is active
+    """
+    client.adcli.join(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        args=["--domain-controller", provider.host.hostname, "--verbose"],
+        krb=False,
+        password=provider.host.adminpw,
+    )
+
+    testjoin = client.adcli.testjoin(
+        domain=provider.host.domain, args=[f"--domain-controller={provider.host.hostname}", "--verbose"]
+    )
+    assert testjoin.rc == 0, "client-join is not valid"
+    assert re.findall(
+        rf"Sucessfully validated join to domain {provider.host.domain}", testjoin.stdout, re.IGNORECASE
+    ), "Failed to validate join to domain"
