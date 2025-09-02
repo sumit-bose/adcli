@@ -940,7 +940,7 @@ connect_to_address (const char *host,
 	if (!ldap && error)
 		_adcli_err ("Couldn't connect to host: %s: %s", host, strerror (error));
 
-	if (ai != NULL) {
+	if (ldap != NULL && ai != NULL) {
 		*addr = malloc (sizeof(struct sockaddr));
 		if (*addr != NULL) {
 			memcpy (*addr, ai->ai_addr, sizeof(struct sockaddr));
@@ -960,7 +960,7 @@ connect_and_lookup_naming (adcli_conn *conn,
 	LDAPMessage *results;
 	adcli_result res;
 	LDAP *ldap;
-	struct sockaddr *addr;
+	struct sockaddr *addr = NULL;
 	int ret;
 	int ver;
 
