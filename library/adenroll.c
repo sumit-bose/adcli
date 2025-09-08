@@ -1741,6 +1741,25 @@ set_password_with_computer_creds (adcli_enroll *enroll)
 		res = ADCLI_SUCCESS;
 	}
 
+	/* Check if maybe the password change was successful on the AD side
+	 * and the returned error has some other reason. */
+	if (res != ADCLI_SUCCESS) {
+		code = _adcli_kinit_computer_creds (enroll->conn, NULL, NULL,
+		                                    enroll->computer_password,
+		                                    NULL);
+		if (code == 0) {
+			_adcli_err ("AD is accepting new computer password, "
+			            "assuming change was successful.");
+			if (enroll->kvno > 0) {
+				enroll->kvno++;
+				_adcli_info ("kvno incremented to %d", enroll->kvno);
+			}
+			res = ADCLI_SUCCESS;
+		}
+		/* No need to check for errors because an error is expected
+		 * here since the password changed failed. */
+	}
+
 	krb5_free_data_contents (k5, &result_string);
 	krb5_free_data_contents (k5, &result_code_string);
 
