@@ -182,6 +182,7 @@ char *        _adcli_calc_netbios_name       (const char *host_fqdn);
 krb5_error_code  _adcli_kinit_computer_creds      (adcli_conn *conn,
                                                    const char *in_tkt_service,
                                                    krb5_ccache ccache,
+                                                   const char *explicit_password,
                                                    krb5_creds *creds);
 
 krb5_error_code  _adcli_kinit_user_creds          (adcli_conn *conn,

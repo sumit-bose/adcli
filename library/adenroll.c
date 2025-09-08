@@ -1693,7 +1693,8 @@ set_password_with_computer_creds (adcli_enroll *enroll)
 
 	_adcli_info ("Trying to change %s password with Kerberos", s_or_c (enroll));
 
-	code = _adcli_kinit_computer_creds (enroll->conn, "kadmin/changepw", NULL, &creds);
+	code = _adcli_kinit_computer_creds (enroll->conn, "kadmin/changepw",
+	                                    NULL, NULL, &creds);
 	if (code != 0) {
 		_adcli_err ("Couldn't get change password ticket for %s account: %s: %s",
 		            s_or_c (enroll),

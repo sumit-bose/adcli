@@ -514,6 +514,7 @@ krb5_error_code
 _adcli_kinit_computer_creds (adcli_conn *conn,
                              const char *in_tkt_service,
                              krb5_ccache ccache,
+                             const char *explicit_password,
                              krb5_creds *creds)
 {
 	krb5_get_init_creds_opt *opt;
@@ -547,7 +548,8 @@ _adcli_kinit_computer_creds (adcli_conn *conn,
 	if (!creds)
 		creds = &dummy;
 
-	password = conn->computer_password;
+	password = (explicit_password == NULL ? conn->computer_password
+	                                      : explicit_password);
 	new_password = NULL;
 
 	/*
@@ -555,7 +557,7 @@ _adcli_kinit_computer_creds (adcli_conn *conn,
 	 * explicitly requested.
 	 */
 
-	if (conn->keytab) {
+	if (conn->keytab && explicit_password == NULL) {
 		code = krb5_get_init_creds_keytab (k5, creds, principal, conn->keytab,
 		                                   0, (char *)in_tkt_service, opt);
 
@@ -641,7 +643,7 @@ kinit_with_computer_credentials (adcli_conn *conn,
 
 	use_default = (conn->computer_password == NULL);
 
-	code = _adcli_kinit_computer_creds (conn, NULL, ccache, NULL);
+	code = _adcli_kinit_computer_creds (conn, NULL, ccache, NULL, NULL);
 
 	if (code == 0) {
 		_adcli_info ("Authenticated as %scomputer account: %s",
