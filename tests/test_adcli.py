@@ -168,5 +168,5 @@ def test_adcli_testjoin(client: Client, provider: GenericADProvider):
     )
     assert testjoin.rc == 0, "client-join is not valid"
     assert re.findall(
-        rf"Sucessfully validated join to domain {provider.host.domain}", testjoin.stdout, re.IGNORECASE
+        rf"Successfully validated join to domain {provider.host.domain}", testjoin.stdout, re.IGNORECASE
     ), "Failed to validate join to domain"

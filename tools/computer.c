@@ -741,7 +741,7 @@ adcli_tool_computer_testjoin (adcli_conn *conn,
 		return -res;
 	}
 
-	printf ("Sucessfully validated join to domain %s\n",
+	printf ("Successfully validated join to domain %s\n",
 	        adcli_conn_get_domain_name (conn));
 
 	adcli_enroll_unref (enroll);
