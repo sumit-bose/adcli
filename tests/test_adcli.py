@@ -684,3 +684,258 @@ def test_adcli_after_join_show_details(client: Client, provider: GenericADProvid
     assert re.findall(
         r"\[keytab\]\nkvno = [0-9]+\nkeytab = FILE:/etc/krb5.keytab", j.stdout, re.IGNORECASE
     ), "adcli stdout failed to show computer information!"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_add_details_at_join(client: Client, provider: GenericADProvider):
+    """
+    :title: add details in computer account at joining
+    :steps:
+        1. At joining, add details about OS, OS version, OS service pack, short-description, the client to a AD-domain
+    :expectedresults:
+        1. After join, computer account wil show added details in computer account
+    """
+    args = ["--verbose"]
+    details = {"--os-name": "linux",
+               "--os-service-pack": "99",
+               "--os-version": "10",
+               "--description": "Set during joining"
+    }
+    output = {"operatingSystem": "linux",
+              "operatingSystemVersion": "10",
+              "operatingSystemServicePack": "99",
+              "description": "Set During joining"
+    }
+
+    for i, j in details.items():
+        args.append(f"{i}={j}")
+
+    k = client.adcli.join(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=args,
+        krb=False,
+    )
+
+    assert k.rc == 0, "adcli failed to join the client!"
+
+    s = client.adcli.show_computer(
+        domain=provider.host.domain,
+        args=["--login-user", "Administrator", "--verbose"],
+        login_user="Administrator",
+        krb=False,
+        password=provider.host.adminpw,
+    )
+    assert s.rc == 0, "adcli failed to show the client details!"
+
+    for attribute, value in output.items():
+        assert re.findall(
+            rf"{attribute}:\n {value}", s.stdout, re.IGNORECASE
+        ), f"{attribute} Details added at join not reflected!"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+@pytest.mark.parametrize("expire_value", ["Yes", "No", "True", "False"])
+def test_adcli_control_machine_account_passwd_expiry(client: Client, provider: GenericADProvider, expire_value: str):
+    """
+    :title: Control machin account password expiry
+    :steps:
+        1. At joininig, add dont-expire-password with values
+    :expectedresults:
+        1. After join, computer account password attribute would show correct details
+    """
+
+    j = client.adcli.join(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=["--verbose", f"--dont-expire-password={expire_value}"],
+        krb=False,
+    )
+
+    assert j.rc == 0, "adcli failed to join the client!"
+
+    s = client.adcli.show_computer(
+        domain=provider.host.domain,
+        args=["--login-user", "Administrator", "--verbose"],
+        login_user="Administrator",
+        krb=False,
+        password=provider.host.adminpw,
+    )
+    assert s.rc == 0, "adcli failed to show the client details!"
+
+    if expire_value in ("True", "Yes"):
+        assert re.findall(
+            r"userAccountControl:\n 69632", s.stdout, re.IGNORECASE
+        ), "Details added at join not reflected!"
+    elif expire_value in ("False", "No"):
+        assert re.findall(
+            r"userAccountControl:\n 4096", s.stdout, re.IGNORECASE
+        ), "Details added at join not reflected!"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_show_password_at_join(client: Client, provider: GenericADProvider):
+    """
+    :title: After join, show computer account password
+    :steps:
+        1. Run join operation with `--show-password`.
+    :expectedresults:
+        1. Successful adcli join output should show computer account password.
+    """
+    j = client.adcli.join(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=["--verbose", "--show-password"],
+        krb=False,
+    )
+
+    assert j.rc == 0, "adcli failed to join the client!"
+
+    assert re.findall(
+        r"\[computer\]\ncomputer-password = .*", j.stdout, re.IGNORECASE
+    ), "computer account password at join not reflected!"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_user_principal_at_join(client: Client, provider: GenericADProvider):
+    """
+    :title: At join, set computer's kerberos principal with userPrincipal.
+    :steps:
+        1. Run join operation with `--userPrincipal` with value.
+    :expectedresults:
+        1. Successful adcli join should set computer kerberos principal as per userPrincipalName.
+    """
+    j = client.adcli.join(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=["--verbose", f"--user-principal=host/setatjoin@{provider.host.domain.upper()}"],
+        krb=False,
+    )
+
+    assert j.rc == 0, "adcli failed to join the client!"
+
+    klist = client.host.conn.exec(
+        ["klist", "-kt"],
+        raise_on_error=True,
+    )
+    assert re.findall(
+        rf"host/setatjoin@{provider.host.domain.upper()}", klist.stdout, re.IGNORECASE
+    ), "userPrincipal value not set!"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_join_hostname_length(client: Client, provider: GenericADProvider):
+    """
+    :title: Join a client having hostname length 19-character or more
+    :setup:
+        1. Set client hostname to 19-character length.
+    :steps:
+        1. Run join
+    :expectedresults:
+        1. Join operation should truncate hostname to required length and succeed.
+    """
+    u = str(uuid.uuid4())[:20]
+    new_hostname = f"client-{u}.{provider.host.domain}"
+
+    client.hostnameutils.name = new_hostname
+    assert client.hostnameutils.name == new_hostname
+
+    j = client.adcli.join(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=["--verbose"],
+        krb=False,
+    )
+
+    assert j.rc == 0, "adcli failed to join the client!"
+    assert re.findall(
+        rf"Truncated computer account name from fqdn: {new_hostname[:15].upper()}", j.stderr, re.IGNORECASE
+    ), "adcli join failed!"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_preset_computer(client: Client, provider: GenericADProvider):
+    """
+    :title: Preset a computer account in AD
+    :steps:
+        1. Preset a computer account in AD
+    :expectedresults:
+        1. A computer account be created in AD
+    """
+
+    j = client.adcli.preset_computer(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=["--verbose", client.host.hostname],
+        krb=False,
+    )
+
+    assert j.rc == 0, "adcli failed to join the client!"
+
+    assert re.findall(rf"", j.stderr, re.IGNORECASE), "adcli join failed!"
+
+    client.adcli.join(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=["--verbose"],
+        krb=False,
+    )
+
+    z = client.adcli.reset_computer(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        password=provider.host.adminpw,
+        args=["--verbose", client.host.hostname],
+        krb=False,
+    )
+
+    assert z.rc == 0, "adcli failed to join the client!"
+
+    delete_computer = client.adcli.delete_computer(
+        domain=f"{provider.host.domain}",
+        args=["--login-user", "Administrator", "--verbose"],
+        krb=False,
+        login_user="Administrator",
+        password=provider.host.adminpw,
+    )
+
+    assert re.findall(
+        rf"Deleted computer account at", delete_computer.stderr, re.IGNORECASE
+    ), "adcli showing computer info!"
+
+
+@pytest.mark.importance("critical")
+@pytest.mark.topology(KnownTopologyGroup.AnyAD)
+def test_adcli_msa_service_principal(client: Client, provider: GenericADProvider):
+    """
+    :title: adcli msa add service principal
+    :description: adcli add service principal msa
+    :setup:
+        1. Join client to AD.
+    :steps:
+        1. Create msa account
+    :expectedresults:
+        1. account is created
+    """
+    client.realm.join(provider.host.domain, krb=False, user=provider.host.adminuser, password=provider.host.adminpw)
+    msa = client.adcli.create_msa(
+        domain=provider.host.domain,
+        login_user=provider.host.adminuser,
+        args=["--verbose"],
+        krb=False,
+        password=provider.host.adminpw,
+    )
+    assert msa.rc != 0, "Managed service account is not created!"
