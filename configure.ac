@@ -131,12 +131,25 @@ if test "$sasl_invalid" = "yes"; then
 	AC_MSG_ERROR([Couldn't find Cyrus SASL headers])
 fi
 
+
+# --------------------------------------------------------------------
+# SELinux support
+AC_ARG_ENABLE([selinux-support],
+              [AS_HELP_STRING([--disable-selinux-support],
+                              [do not build support for SELinux])],
+              [build_selinux_support=$enableval],
+              [build_selinux_support=yes])
+
 # --------------------------------------------------------------------
 # libselinux
 AC_SUBST(LIBSELINUX_LIBS)
 AC_SUBST(LIBSELINUX_CFLAGS)
 
 PKG_CHECK_MODULES([LIBSELINUX], [libselinux], [found_libselinux=yes], [found_libselinux=no])
+
+if test x$build_selinux_support = xyes && test x$found_libselinux = xno; then
+	AC_MSG_ERROR([Couldn't build SELinux support, libselinux devel packages missing])
+fi
 
 # --------------------------------------------------------------------
 # selinux-policy
@@ -147,9 +160,13 @@ AC_CHECK_FILE([$SELINUX_MAKEFILE],
               [build_selinux=yes],
               [build_selinux=no])
 
-AM_CONDITIONAL(BUILD_SELINUX_POLICY, test x$build_selinux = xyes && test x$found_libselinux = xyes)
+if test x$build_selinux_support = xyes && test x$build_selinux = xno; then
+    AC_MSG_ERROR([Couldn't build SELinux support, SELinux policy devel packages missing])
+fi
 
-if test x$build_selinux = xyes && test x$found_libselinux = xyes; then
+AM_CONDITIONAL(BUILD_SELINUX_POLICY, test x$build_selinux_support = xyes)
+
+if test x$build_selinux_support = xyes; then
     AC_DEFINE(BUILD_SELINUX_POLICY, 1, [whether to build with SELinux support])
 fi
 
@@ -370,4 +387,5 @@ AC_MSG_NOTICE([build options:
     Debug build:                     $debug_status
     Strict build:                    $strict_status
     Documentation:                   $doc_status
+    SELinux support:                 $build_selinux_support
 ])
