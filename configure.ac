@@ -392,6 +392,7 @@ AC_CONFIG_FILES([Makefile
 	doc/version.xml
 	doc/samba_data_tool_path.xml
 	library/Makefile
+	tests/Makefile
 	tools/Makefile
 	selinux/Makefile
 ])
