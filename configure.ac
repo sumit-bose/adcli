@@ -97,9 +97,24 @@ AC_SUBST(LDAP_CFLAGS)
 
 # -------------------------------------------------------------------
 # samba
+AC_ARG_ENABLE([offline-join-support],
+              [AS_HELP_STRING([--disable-offline-join-support],
+                              [do not build support for Samba's offline join feature])],
+              [build_offline_join_support=$enableval],
+              [build_offline_join_support=yes])
+
 
 AC_CHECK_LIB([netapi], [NetComposeOfflineDomainJoin],
-	     [AC_DEFINE(SAMBA_NETAPI_HAS_COMPOSEODJ, 1, [Samba NetApi supports composeodj])])
+             [found_offline_join=yes],
+             [found_offline_join=no])
+
+if test x$build_offline_join_support = xyes && test x$found_offline_join = xno ; then
+        AC_MSG_ERROR([Couldn't build offline join support, Samba version too old or libnatapi devel package is missing])
+fi
+
+if test x$build_offline_join_support = xyes; then
+        AC_DEFINE(SAMBA_NETAPI_HAS_COMPOSEODJ, 1, [Samba NetApi supports composeodj])
+fi
 
 # -------------------------------------------------------------------
 # resolv
@@ -388,4 +403,5 @@ AC_MSG_NOTICE([build options:
     Strict build:                    $strict_status
     Documentation:                   $doc_status
     SELinux support:                 $build_selinux_support
+    Offline join support:            $build_offline_join_support
 ])
